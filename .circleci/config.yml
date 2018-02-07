@@ -1,5 +1,9 @@
 version: 2
 
+general:
+  branches:
+    ignore:
+      - gh-pages # list of branches to ignore
 
 step-library:
   - &install-brew-deps
