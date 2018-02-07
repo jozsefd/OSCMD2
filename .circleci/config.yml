@@ -1,0 +1,35 @@
+version: 2
+
+step-library:
+  - &install-brew-deps
+      run:
+        name: Install Dependencies via Homebrew
+        command: |
+          brew update
+          brew uninstall libtool
+          brew install libtool
+          brew install gengetopt help2man
+  - &test
+      run:
+        name: Run Tests
+        command: |
+          make check;
+          make dist;
+
+jobs:
+  build-elcapitan:
+    macos:
+      xcode: "9.0"
+      steps:
+        - checkout
+        - *install-brew-deps
+        - run: MacOSX/build
+        - *test
+  build-sierra:
+    macos:
+      xcode: "8.0"
+      steps:
+        - checkout
+        - *install-brew-deps
+        - run: MacOSX/build
+        - *test
