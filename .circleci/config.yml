@@ -3,7 +3,8 @@ version: 2
 general:
   branches:
     ignore:
-      - gh-pages # list of branches to ignore
+      - gh-pages
+      - coverity_scan
 
 step-library:
   - &install-brew-deps
@@ -18,8 +19,8 @@ step-library:
       run:
         name: Run Tests
         command: |
-          make check;
-          make dist;
+          make check
+          make dist
 
 jobs:
   build-elcapitan:
@@ -27,21 +28,42 @@ jobs:
       xcode: "9.0"
       steps:
         - checkout
-        - *install-brew-deps
+        - run:
+            name: Install Dependencies via Homebrew
+            command: |
+              brew update
+              brew uninstall libtool
+              brew install libtool
+              brew install gengetopt help2man
         - run: MacOSX/build
-        - *test
+        - run:
+            name: Run Tests
+            command: |
+              make check
+              make dist
   build-sierra:
     macos:
       xcode: "8.0"
       steps:
         - checkout
-        - *install-brew-deps
+        - run:
+            name: Install Dependencies via Homebrew
+            command: |
+              brew update
+              brew uninstall libtool
+              brew install libtool
+              brew install gengetopt help2man
         - run: MacOSX/build
-        - *test
+        - run:
+            name: Run Tests
+            command: |
+              make check
+              make dist
           
 workflows:
   version: 2
-  build-and-deploy:
+  build-and-test:
     jobs:
       - build-elcapitan
       - build-sierra
+
