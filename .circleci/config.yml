@@ -1,18 +1,18 @@
 version: 2
+
 jobs:
-  build-and-test:
+  build:
     macos:
       xcode: "9.0"
-
     steps:
       - checkout
       - run:
-          name: Fetch CocoaPods Specs
+          name: Build
           command: |
             MacOSX/build
 
 workflows:
   version: 2
-  build-test-lint:
+  build:
     jobs:
-      - build-and-test
+      - build
