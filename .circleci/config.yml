@@ -1,10 +1,11 @@
 version: 2
 
-general:
-  branches:
-    ignore:
-      - gh-pages
-      - coverity_scan
+workflows:
+  version: 2
+  default:
+    jobs:
+      - build-elcapitan
+      - build-sierra
 
 step-library:
   - &install-brew-deps
@@ -15,6 +16,13 @@ step-library:
           brew uninstall libtool
           brew install libtool
           brew install gengetopt help2man
+
+  - &compile
+      run:
+        name: Compile OpenSC
+        command: |
+          MacOSX/build
+
   - &test
       run:
         name: Run Tests
@@ -26,44 +34,17 @@ jobs:
   build-elcapitan:
     macos:
       xcode: "9.0"
-      steps:
-        - checkout
-        - run:
-            name: Install Dependencies via Homebrew
-            command: |
-              brew update
-              brew uninstall libtool
-              brew install libtool
-              brew install gengetopt help2man
-        - run: MacOSX/build
-        - run:
-            name: Run Tests
-            command: |
-              make check
-              make dist
+    steps:
+      - checkout
+      - *install-brew-deps
+      - *compile
+      - *test
+
   build-sierra:
     macos:
       xcode: "8.0"
-      steps:
-        - checkout
-        - run:
-            name: Install Dependencies via Homebrew
-            command: |
-              brew update
-              brew uninstall libtool
-              brew install libtool
-              brew install gengetopt help2man
-        - run: MacOSX/build
-        - run:
-            name: Run Tests
-            command: |
-              make check
-              make dist
-          
-workflows:
-  version: 2
-  build:
-    jobs:
-      - build-elcapitan
-      - build-sierra
-
+    steps:
+      - checkout
+      - *install-brew-deps
+      - *compile
+      - *test
