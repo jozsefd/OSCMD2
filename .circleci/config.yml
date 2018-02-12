@@ -1,23 +1,18 @@
 version: 2
+jobs:
+  build-and-test:
+    macos:
+      xcode: "9.0"
+
+    steps:
+      - checkout
+      - run:
+          name: Fetch CocoaPods Specs
+          command: |
+            MacOSX/build
 
 workflows:
   version: 2
-  default:
+  build-test-lint:
     jobs:
-      - build-elcapitan
-      - build-sierra
-
-jobs:
-  build-elcapitan:
-    macos:
-      xcode: "9.0"
-    steps:
-      - checkout
-      - run: MacOSX/build
-
-  build-sierra:
-    macos:
-      xcode: "8.0"
-    steps:
-      - checkout
-      - run: MacOSX/build
+      - build-and-test
