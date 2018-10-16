@@ -116,6 +116,16 @@ deploy_script:
 
 test_script:
   - C:\vpcd_${env:OPENSSL_PF}\BixVReaderInstaller.msi /quiet
+  - echo "[Driver]"                      > C:\Windows\BixVReader.ini
+  - echo "NumReaders=1"                 >> C:\Windows\BixVReader.ini
+  - echo ""                             >> C:\Windows\BixVReader.ini
+  - echo "[Reader0]"                    >> C:\Windows\BixVReader.ini
+  - echo "RPC_TYPE=0"                   >> C:\Windows\BixVReader.ini
+  - echo "VENDOR_NAME=Fabio Ottavi"     >> C:\Windows\BixVReader.ini
+  - echo "VENDOR_IFD_TYPE=Pipe Reader"  >> C:\Windows\BixVReader.ini
+  - echo "DECIVE_UNIT=0"                >> C:\Windows\BixVReader.ini
+  - devcon.exe disable root\BixVirtualReader
+  - devcon.exe enable  root\BixVirtualReader
 
 cache:
   - C:\zlib -> appveyor.yml
