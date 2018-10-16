@@ -59,6 +59,16 @@ install:
           appveyor DownloadFile "https://github.com/frankmorgner/vsmartcard/releases/download/virtualsmartcard-0.7/vpcd_${env:OPENSSL_PF}.zip"
           7z x vpcd_${env:OPENSSL_PF}.zip -oC:\
       }
+      If (!(Test-Path jcardsim-3.0.4-SNAPSHOT.jar )) {
+          appveyor DownloadFile "https://github.com/licel/jcardsim/raw/master/jcardsim-3.0.4-SNAPSHOT.jar"
+      }
+      If (!(Test-Path C:\IsoApplet )) {
+        git clone https://github.com/philipWendland/IsoApplet C:\IsoApplet
+        javac -classpath jcardsim-3.0.4-SNAPSHOT.jar C:\IsoApplet\src\net\pwendland\javacard\pki\isoapplet\*.java
+        echo "com.licel.jcardsim.card.applet.0.AID=F276A288BCFBA69D34F31001"                           > C:\IsoApplet\jcardsim_isoapplet.cfg
+        echo "com.licel.jcardsim.card.applet.0.Class=net.pwendland.javacard.pki.isoapplet.IsoApplet"  >> C:\IsoApplet\jcardsim_isoapplet.cfg
+        echo "com.licel.jcardsim.card.ATR=3B80800101"                                                 >> C:\IsoApplet\jcardsim_isoapplet.cfg
+      }
   - ps: $env:VSCOMNTOOLS=(Get-Content ("env:VS" + "$env:VSVER" + "0COMNTOOLS"))
   - echo "Using Visual Studio %VSVER%.0 at %VSCOMNTOOLS%"
   - call "%VSCOMNTOOLS%\..\..\VC\vcvarsall.bat" %VCVARS_PLATFORM%
@@ -115,6 +125,8 @@ deploy_script:
   - bash -c "if [ \"$DO_PUSH_ARTIFACT\" = yes -a -z \"$APPVEYOR_PULL_REQUEST_NUMBER\" ]; then .github/push_artifacts.sh \"AppVeyor build ${APPVEYOR_BUILD_NUMBER}.${APPVEYOR_JOB_NUMBER}\"; fi"
 
 test_script:
+  - %ARTIFACT%.msi /quiet
+
   - C:\vpcd_${env:OPENSSL_PF}\BixVReaderInstaller.msi /quiet
   - echo "[Driver]"                      > C:\Windows\BixVReader.ini
   - echo "NumReaders=1"                 >> C:\Windows\BixVReader.ini
@@ -126,6 +138,9 @@ test_script:
   - echo "DECIVE_UNIT=0"                >> C:\Windows\BixVReader.ini
   - devcon.exe disable root\BixVirtualReader
   - devcon.exe enable  root\BixVirtualReader
+  - start /B "jCardSim (IsoApplet)" javac -classpath jcardsim-3.0.4-SNAPSHOT.jar;C:\IsoApplet\src com.licel.jcardsim.remote.BixVReaderCard C:\IsoApplet\jcardsim_isoapplet.cfg
+  - cd "%PROGRAMFILES%\OpenSC Project\OpenSC\tools"
+  - opensc-tool --card-driver default --send-apdu 80b800001a0cf276a288bcfba69d34f310010cf276a288bcfba69d34f3100100
 
 cache:
   - C:\zlib -> appveyor.yml
@@ -137,3 +152,5 @@ cache:
   - cngsdk.msi -> appveyor.yml
   - C:\vpcd_win32 -> appveyor.yml
   - C:\vpcd_win64 -> appveyor.yml
+  - jcardsim-3.0.4-SNAPSHOT.jar -> appveyor.yml
+  - C:\IsoApplet -> appveyor.yml
