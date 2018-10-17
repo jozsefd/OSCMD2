@@ -127,7 +127,7 @@ deploy_script:
   - bash -c "if [ \"$DO_PUSH_ARTIFACT\" = yes -a -z \"$APPVEYOR_PULL_REQUEST_NUMBER\" ]; then .github/push_artifacts.sh \"AppVeyor build ${APPVEYOR_BUILD_NUMBER}.${APPVEYOR_JOB_NUMBER}\"; fi"
 
 test_script:
-  - %ARTIFACT%.msi /quiet
+  - "%ARTIFACT%.msi" /quiet
 
   - C:\vpcd_%OPENSSL_PF%\BixVReaderInstaller.msi /quiet
   - echo "[Driver]"                      > C:\Windows\BixVReader.ini
