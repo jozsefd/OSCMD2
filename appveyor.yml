@@ -128,8 +128,7 @@ deploy_script:
 
 test_script:
   - call "%ARTIFACT%.msi" /quiet
-
-  - C:\vpcd_%OPENSSL_PF%\BixVReaderInstaller.msi /quiet
+  - call "C:\vpcd_%OPENSSL_PF%\BixVReaderInstaller.msi" /quiet
   - echo "[Driver]"                      > C:\Windows\BixVReader.ini
   - echo "NumReaders=1"                 >> C:\Windows\BixVReader.ini
   - echo ""                             >> C:\Windows\BixVReader.ini
