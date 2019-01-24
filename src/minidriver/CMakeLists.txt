@@ -31,6 +31,8 @@ target_link_libraries(minidriver libopensc)
 target_link_libraries(minidriver pkcs15init)
 target_link_libraries(minidriver pkcs11)
 target_link_libraries(minidriver ui)
+#target_link_libraries(minidriver sm)
+#target_link_libraries(minidriver smm)
 
 target_link_libraries(minidriver Winmm)
 target_link_libraries(minidriver Ws2_32)
