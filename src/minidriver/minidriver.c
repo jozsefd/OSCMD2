@@ -4491,6 +4491,21 @@ DWORD WINAPI CardRSADecrypt(__in PCARD_DATA pCardData,
 					  "sc_pkcs15_decipher: DECRYPT-INFO dwVersion=%lu\n",
 					  (unsigned long)pInfo->dwVersion);
 				if (pInfo->dwPaddingType == CARD_PADDING_PKCS1)   {
+					// dirty hack
+					if (r != pInfo->cbData) {
+						//  since no error, but the message is shorter, we will add a dummy BT2 padding
+						memset(pbuf, 5, pInfo->cbData); // "random" data
+														// header for BT2 padding
+						pbuf[0] = 0x00;
+						pbuf[1] = 0x02;
+						// end of padding
+						pbuf[pInfo->cbData - r - 1] = 0x00;
+						// actual data
+						memcpy(pbuf + (pInfo->cbData - r), pbuf2, r);
+						// we need it in pbuf2
+						memcpy(pbuf2, pbuf, pInfo->cbData);
+					}
+
 					size_t temp = pInfo->cbData;
 					logprintf(pCardData, 2, "sc_pkcs15_decipher: stripping PKCS1 padding\n");
 					r = sc_pkcs1_strip_02_padding(vs->ctx, pbuf2, pInfo->cbData, pbuf2, &temp);

@@ -43,6 +43,7 @@ static const struct sc_atr_table starcos_atrs[] = {
 	{ "3B:DF:96:FF:81:31:FE:45:80:5B:44:45:2E:42:4E:4F:54:4B:31:31:31:81:05:A0", NULL, NULL, SC_CARD_TYPE_STARCOS_V3_5, 0, NULL },
 	{ "3B:DF:96:FF:81:31:FE:45:80:5B:44:45:2E:42:4E:4F:54:4B:31:30:30:81:05:A0", NULL, NULL, SC_CARD_TYPE_STARCOS_V3_5, 0, NULL },
 	{ "3B:D9:96:FF:81:31:FE:45:80:31:B8:73:86:01:E0:81:05:22", NULL, NULL, SC_CARD_TYPE_STARCOS_V3_5, 0, NULL },
+	{ "3b:df:96:ff:81:31:fe:45:80:5b:44:45:2e:42:41:5f:53:43:33:35:32:81:05:b5", NULL, NULL, SC_CARD_TYPE_STARCOS_V3_5, 0, NULL },
 	{ NULL, NULL, NULL, 0, 0, NULL }
 };
 
@@ -79,6 +80,8 @@ typedef struct starcos_ex_data_st {
 	int    sec_ops;	/* the currently selected security operation,
 			 * i.e. SC_SEC_OPERATION_AUTHENTICATE etc. */
 	unsigned int    fix_digestInfo;
+	int				logged_in;
+	int				use_cache;
 } starcos_ex_data;
 
 #define CHECK_NOT_SUPPORTED_V3_4(card) \
@@ -112,6 +115,8 @@ static int starcos_init(sc_card_t *card)
 
 	card->name = "STARCOS";
 	card->cla  = 0x00;
+	ex_data->logged_in = SC_PIN_STATE_LOGGED_OUT;
+	ex_data->use_cache = 1;
 	card->drv_data = (void *)ex_data;
 
 	flags = SC_ALGORITHM_RSA_PAD_PKCS1 
@@ -127,11 +132,9 @@ static int starcos_init(sc_card_t *card)
 
 	if (card->type == SC_CARD_TYPE_STARCOS_V3_4
 			|| card->type == SC_CARD_TYPE_STARCOS_V3_5) {
-		if (card->type == SC_CARD_TYPE_STARCOS_V3_4)
-			card->name = "STARCOS 3.4";
-		else
-			card->name = "STARCOS 3.5";
-		card->caps |= SC_CARD_CAP_ISO7816_PIN_INFO;
+
+		card->caps |= SC_CARD_CAP_APDU_EXT;
+		ex_data->use_cache = 0;
 
 		flags |= SC_CARD_FLAG_RNG
 			| SC_ALGORITHM_RSA_HASH_SHA224
@@ -145,6 +148,16 @@ static int starcos_init(sc_card_t *card)
 		_sc_card_add_rsa_alg(card,1728, flags, 0x10001);
 		_sc_card_add_rsa_alg(card,1976, flags, 0x10001);
 		_sc_card_add_rsa_alg(card,2048, flags, 0x10001);
+
+		if (card->type == SC_CARD_TYPE_STARCOS_V3_4) {
+			card->name = "STARCOS 3.4";
+			card->caps |= SC_CARD_CAP_ISO7816_PIN_INFO;
+		} else {
+			card->name = "STARCOS 3.5";
+			flags |= SC_ALGORITHM_RSA_PAD_PSS;
+			_sc_card_add_rsa_alg(card, 3072, flags, 0x10001);
+		}
+
 	} else {
 		_sc_card_add_rsa_alg(card, 512, flags, 0x10001);
 		_sc_card_add_rsa_alg(card, 768, flags, 0x10001);
@@ -640,9 +653,15 @@ static int starcos_select_file(sc_card_t *card,
 	u8 pathbuf[SC_MAX_PATH_SIZE], *path = pathbuf;
 	int    r;
 	size_t i, pathlen;
+	int cache_valid = card->cache.valid;
+	starcos_ex_data *ex_data = (starcos_ex_data *)card->drv_data;
 	char pbuf[SC_MAX_PATH_STRING_SIZE];
 
 	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_VERBOSE);
+	if (!ex_data->use_cache) {
+		sc_debug(card->ctx, SC_LOG_DEBUG_NORMAL, "Path caching disabled.");
+		cache_valid = 0;
+	}
 
 	r = sc_path_print(pbuf, sizeof(pbuf), &card->cache.current_path);
 	if (r != SC_SUCCESS)
@@ -652,7 +671,7 @@ static int starcos_select_file(sc_card_t *card,
 		 "current path (%s, %s): %s (len: %"SC_FORMAT_LEN_SIZE_T"u)\n",
 		 card->cache.current_path.type == SC_PATH_TYPE_DF_NAME ?
 		 "aid" : "path",
-		 card->cache.valid ? "valid" : "invalid", pbuf,
+		 cache_valid ? "valid" : "invalid", pbuf,
 		 card->cache.current_path.len);
 
 	memcpy(path, in_path->value, in_path->len);
@@ -668,7 +687,7 @@ static int starcos_select_file(sc_card_t *card,
 	else if (in_path->type == SC_PATH_TYPE_DF_NAME)
       	{	/* SELECT DF with AID */
 		/* Select with 1-16byte Application-ID */
-		if (card->cache.valid 
+		if (cache_valid
 		    && card->cache.current_path.type == SC_PATH_TYPE_DF_NAME
 		    && card->cache.current_path.len == pathlen
 		    && memcmp(card->cache.current_path.value, pathbuf, pathlen) == 0 )
@@ -696,10 +715,10 @@ static int starcos_select_file(sc_card_t *card,
 		if (pathlen == 6 && ( path[0] != 0x3f || path[1] != 0x00 ))
 			SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE, SC_ERROR_INVALID_ARGUMENTS);
 
-		if (card->type != SC_CARD_TYPE_STARCOS_V3_4
+		/*if (card->type != SC_CARD_TYPE_STARCOS_V3_4
 				|| card->type == SC_CARD_TYPE_STARCOS_V3_5
 				|| (pathlen == 0 && card->cache.current_path.type != SC_PATH_TYPE_DF_NAME)) {
-			/* unify path (the first FID should be MF) */
+			// unify path (the first FID should be MF) 
 			if (path[0] != 0x3f || path[1] != 0x00)
 			{
 				n_pathbuf[0] = 0x3f;
@@ -709,10 +728,10 @@ static int starcos_select_file(sc_card_t *card,
 				path = n_pathbuf;
 				pathlen += 2;
 			}
-		}
+		}*/
 	
 		/* check current working directory */
-		if (card->cache.valid 
+		if (cache_valid
 		    && card->cache.current_path.type == SC_PATH_TYPE_PATH
 		    && card->cache.current_path.len >= 2
 		    && card->cache.current_path.len <= pathlen )
@@ -732,7 +751,7 @@ static int starcos_select_file(sc_card_t *card,
 			}
 		}
 
-		if ( card->cache.valid && bMatch >= 0 )
+		if (cache_valid && bMatch >= 0 )
 		{
 			if ( pathlen - bMatch == 2 )
 				/* we are in the right directory */
@@ -1355,6 +1374,7 @@ static int starcos_set_security_env(sc_card_t *card,
 
 		switch (operation) {
 			case SC_SEC_OPERATION_SIGN:
+			case SC_SEC_OPERATION_AUTHENTICATE:
 				sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0x22, 0x41, 0xB6);
 
 				/* algorithm / cipher selector? */
@@ -1392,13 +1412,18 @@ static int starcos_set_security_env(sc_card_t *card,
 		if (apdu.sw1 != 0x90 || apdu.sw2 != 0x00)
 			SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE, sc_check_sw(card, apdu.sw1, apdu.sw2));
 
-		if (env->algorithm_flags == SC_ALGORITHM_RSA_PAD_PKCS1) {
+		/*
+		if (env->algorithm_flags & SC_ALGORITHM_RSA_PAD_PKCS1) {
 			// input data will be already padded
 			ex_data->fix_digestInfo = 0;
 		} else {
 			ex_data->fix_digestInfo = env->algorithm_flags;
 		}
+		*/
+		ex_data->fix_digestInfo = env->algorithm_flags;
+		// we may need internal auth here (but how to decide?)
 		ex_data->sec_ops        = SC_SEC_OPERATION_SIGN;
+		//ex_data->sec_ops		= SC_SEC_OPERATION_AUTHENTICATE;
 		return SC_SUCCESS;
 	}
 
@@ -1541,9 +1566,15 @@ static int starcos_compute_signature(sc_card_t *card,
 			if (ex_data->fix_digestInfo) {
 				// need to pad data
 				unsigned int flags = ex_data->fix_digestInfo & SC_ALGORITHM_RSA_HASHES;
-				if (flags == 0x00) {
-					flags = SC_ALGORITHM_RSA_HASH_NONE;
+				unsigned int hash_algo = flags & SC_ALGORITHM_RSA_HASHES;
+				unsigned int pad_algo = flags & SC_ALGORITHM_RSA_PADS;
+				if (hash_algo == 0) {
+					flags |= SC_ALGORITHM_RSA_HASH_NONE;
 				}
+				if (pad_algo == 0) {
+					flags |= SC_ALGORITHM_RSA_PAD_NONE;
+				}
+
 				tmp_len = sizeof(sbuf);
 				r = sc_pkcs1_encode(card->ctx, flags, data, datalen, sbuf, &tmp_len, sizeof(sbuf)*8);
 				SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, r, "sc_pkcs1_encode failed");
@@ -1596,15 +1627,25 @@ static int starcos_compute_signature(sc_card_t *card,
 		}
 	} else if (ex_data->sec_ops == SC_SEC_OPERATION_AUTHENTICATE) {
 		size_t tmp_len;
-		CHECK_NOT_SUPPORTED_V3_4(card);
 		/* call INTERNAL AUTHENTICATE */
-		sc_format_apdu(card, &apdu, SC_APDU_CASE_4_SHORT, 0x88, 0x10, 0x00);
+		if (card->type == SC_CARD_TYPE_STARCOS_V3_4
+			|| card->type == SC_CARD_TYPE_STARCOS_V3_5) {
+			sc_format_apdu(card, &apdu, SC_APDU_CASE_4_SHORT, 0x88, 0x00, 0x00);
+		}
+		else {
+			sc_format_apdu(card, &apdu, SC_APDU_CASE_4_SHORT, 0x88, 0x10, 0x00);
+		}
 		/* fix/create DigestInfo structure (if necessary) */
 		if (ex_data->fix_digestInfo) {
 			unsigned int flags = ex_data->fix_digestInfo & SC_ALGORITHM_RSA_HASHES;
-			if (flags == 0x0)
-				/* XXX: assume no hash is wanted */
-				flags = SC_ALGORITHM_RSA_HASH_NONE;
+			unsigned int hash_algo = flags & SC_ALGORITHM_RSA_HASHES;
+			unsigned int pad_algo = flags & SC_ALGORITHM_RSA_PADS;
+			if (hash_algo == 0) {
+				flags |= SC_ALGORITHM_RSA_HASH_NONE;
+			}
+			if (pad_algo == 0) {
+				flags |= SC_ALGORITHM_RSA_PAD_NONE;
+			}
 			tmp_len = sizeof(sbuf);
 			r = sc_pkcs1_encode(card->ctx, flags, data, datalen,
 					sbuf, &tmp_len, sizeof(sbuf)*8);
@@ -1852,18 +1893,27 @@ static int starcos_logout(sc_card_t *card)
 static int starcos_pin_cmd(sc_card_t *card, struct sc_pin_cmd_data *data,
 			    int *tries_left)
 {
-	int r;
-
 	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_NORMAL);
-	switch (card->type) {
-		case SC_CARD_TYPE_STARCOS_V3_4:
-		case SC_CARD_TYPE_STARCOS_V3_5:
-			data->flags |= SC_PIN_CMD_NEED_PADDING;
-			data->pin1.encoding = SC_PIN_ENCODING_GLP;
-			/* fall through */
-		default:
-			r = iso_ops->pin_cmd(card, data, tries_left);
+	int r = iso_ops->pin_cmd(card, data, tries_left);
+	if (card->type == SC_CARD_TYPE_STARCOS_V3_5) {
+		starcos_ex_data * ex_data = (starcos_ex_data*)card->drv_data;
+		if (data->cmd == SC_PIN_CMD_GET_INFO) {
+			data->pin1.tries_left = -1;
+			data->pin1.logged_in = ex_data->logged_in;
+			if (tries_left != NULL) {
+				*tries_left = data->pin1.tries_left;
+			}
+			// overriding return value for PIN INFO
+			r = SC_SUCCESS;
+		}
+		else {
+			// SC_PIN_CMD_VERIFY
+			if (r == SC_SUCCESS) {
+				ex_data->logged_in = SC_PIN_STATE_LOGGED_IN;
+			}
+		}
 	}
+
 	SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE, r);
 }
 
