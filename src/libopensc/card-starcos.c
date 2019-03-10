@@ -82,6 +82,7 @@ typedef struct starcos_ex_data_st {
 	unsigned int    fix_digestInfo;
 	int				logged_in;
 	int				use_cache;
+	int				enable_parse_atr;
 } starcos_ex_data;
 
 #define CHECK_NOT_SUPPORTED_V3_4(card) \
@@ -116,7 +117,9 @@ static int starcos_init(sc_card_t *card)
 	card->name = "STARCOS";
 	card->cla  = 0x00;
 	ex_data->logged_in = SC_PIN_STATE_LOGGED_OUT;
+	//TODO make these settings configurable
 	ex_data->use_cache = 1;
+	ex_data->enable_parse_atr = 0;
 	card->drv_data = (void *)ex_data;
 
 	flags = SC_ALGORITHM_RSA_PAD_PKCS1 
@@ -158,6 +161,10 @@ static int starcos_init(sc_card_t *card)
 			_sc_card_add_rsa_alg(card, 3072, flags, 0x10001);
 		}
 
+		if (!ex_data->enable_parse_atr) {
+			card->max_send_size = 256;
+			card->max_recv_size = 256;
+		}
 	} else {
 		_sc_card_add_rsa_alg(card, 512, flags, 0x10001);
 		_sc_card_add_rsa_alg(card, 768, flags, 0x10001);
@@ -168,7 +175,7 @@ static int starcos_init(sc_card_t *card)
 		card->max_recv_size = 128;
 	}
 
-	if (sc_parse_ef_atr(card) == SC_SUCCESS) {
+	if (ex_data->enable_parse_atr && sc_parse_ef_atr(card) == SC_SUCCESS) {
 		if (card->ef_atr->card_capabilities & ISO7816_CAP_EXTENDED_LENGTH) {
 			card->caps |= SC_CARD_CAP_APDU_EXT;
 		}
