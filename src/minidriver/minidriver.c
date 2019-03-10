@@ -237,19 +237,27 @@ static void logprintf(PCARD_DATA pCardData, int level, _Printf_format_string_ co
 	size_t sz = sizeof(md_debug);
 	int rv;
 
+//#define CARDMOD_LOW_LEVEL_DEBUG 1
+#ifdef CARDMOD_LOW_LEVEL_DEBUG
+	static FILE * lldebugfp = NULL;
+	/*
 	rv = sc_ctx_win32_get_config_value("CARDMOD_LOW_LEVEL_DEBUG",
 			"MiniDriverDebug", "Software\\OpenSC Project\\OpenSC",
 			(char *)(&md_debug), &sz);
 	if (rv == SC_SUCCESS && md_debug != 0)   {
-		FILE *lldebugfp = fopen("C:\\tmp\\md.log","a+");
-		if (lldebugfp)   {
-			va_start(arg, format);
-			vfprintf(lldebugfp, format, arg);
-			va_end(arg);
-			fflush(lldebugfp);
-			fclose(lldebugfp);
-		}
+	*/
+	if (lldebugfp == NULL) {
+		lldebugfp = fopen("C:\\tmp\\md.log", "ab");
 	}
+	if (lldebugfp)   {
+		va_start(arg, format);
+		vfprintf(lldebugfp, format, arg);
+		va_end(arg);
+		//fflush(lldebugfp);
+		//fclose(lldebugfp);
+	}
+	//}
+#endif // CARDMOD_LOW_LEVEL_DEBUG
 
 	va_start(arg, format);
 	if(pCardData != NULL)   {
@@ -303,12 +311,17 @@ static DWORD reinit_card(PCARD_DATA pCardData)
 	VENDOR_SPECIFIC *vs;
 	DWORD r;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+
 
 	vs = (VENDOR_SPECIFIC *)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 2, "trying to reinit card\n");
 
@@ -373,12 +386,16 @@ static DWORD check_card_status(PCARD_DATA pCardData, const char *name)
 {
 	VENDOR_SPECIFIC *vs;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = (VENDOR_SPECIFIC *)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (vs->initialized)
 		return SCARD_S_SUCCESS;
@@ -399,16 +416,20 @@ check_card_reader_status(PCARD_DATA pCardData, const char *name)
 	int r;
 
 	logprintf(pCardData, 4, "check_reader_status\n");
-	if(!pCardData)
+	if(!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwRet = check_card_status(pCardData, name);
 	if (dwRet != SCARD_S_SUCCESS)
 		return dwRet;
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if(!vs)
+	if(!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 7, "pCardData->hSCardCtx:0x%08X hScard:0x%08X\n",
 		  (unsigned int)pCardData->hSCardCtx,
@@ -449,12 +470,16 @@ md_get_pin_by_role(PCARD_DATA pCardData, PIN_ID role, struct sc_pkcs15_object **
 	VENDOR_SPECIFIC *vs;
 	int rv;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!ret_obj)
+	if (!ret_obj) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing ret_obj\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* please keep me in sync with _get_auth_object_by_name() in pkcs11/framework-pkcs15.c */
 	if (role == ROLE_USER) {
@@ -632,8 +657,10 @@ md_get_config_bool(PCARD_DATA pCardData, char *flag_name, BOOL ret_default)
 		return ret;
 
 	vs = (VENDOR_SPECIFIC*) pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return ret;
+	}
 
 	if (vs->ctx && vs->reader)   {
 		struct sc_atr atr;
@@ -768,10 +795,12 @@ md_contguid_get_guid_from_card(PCARD_DATA pCardData, struct sc_pkcs15_object *pr
 	size_t guid_len = MAX_CONTAINER_NAME_LEN+1;
 
 	vs = (VENDOR_SPECIFIC*) pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	rv = sc_pkcs15_get_object_guid(vs->p15card, prkey, 1, (unsigned char*) szGuid, &guid_len);
+	rv = sc_pkcs15_get_object_guid(vs->p15card, prkey, 0, (unsigned char*) szGuid, &guid_len);
 	if (rv)   {
 		logprintf(pCardData, 2, "md_contguid_get_guid_from_card(): error %d\n", rv);
 		return SCARD_F_INTERNAL_ERROR;
@@ -873,8 +902,10 @@ md_cont_flags_from_key(PCARD_DATA pCardData, struct sc_pkcs15_object *key_obj, u
 	int rv;
 
 	vs = (VENDOR_SPECIFIC*) pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	prkey_info = (struct sc_pkcs15_prkey_info *)key_obj->data;
 
@@ -899,12 +930,16 @@ md_fs_find_directory(PCARD_DATA pCardData, struct md_directory *parent, char *na
 	if (out)
 		*out = NULL;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (!parent)
 		parent = &vs->root;
@@ -940,8 +975,14 @@ md_fs_add_directory(PCARD_DATA pCardData, struct md_directory **head, char *name
 {
 	struct md_directory *new_dir = NULL;
 
-	if (!pCardData || !head || !name)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!head || !name) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing head or name\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	new_dir = pCardData->pfnCspAlloc(sizeof(struct md_directory));
 	if (!new_dir)
@@ -979,8 +1020,14 @@ md_fs_find_file(PCARD_DATA pCardData, char *parent, char *name, struct md_file *
 	if (out)
 		*out = NULL;
 
-	if (!pCardData || !name)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!name) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing name\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = md_fs_find_directory(pCardData, NULL, parent, &dir);
 	if (dwret != SCARD_S_SUCCESS)   {
@@ -1016,8 +1063,14 @@ md_fs_add_file(PCARD_DATA pCardData, struct md_file **head, char *name, CARD_FIL
 {
 	struct md_file *new_file = NULL;
 
-	if (!pCardData || !head || !name)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!head || !name) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing head or name\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	new_file = pCardData->pfnCspAlloc(sizeof(struct md_file));
 	if (!new_file)
@@ -1081,12 +1134,20 @@ md_fs_delete_file(PCARD_DATA pCardData, char *parent, char *name)
 	int deleted = 0;
 	DWORD dwret;
 
-	if (!pCardData || !name)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!name) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing name\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = md_fs_find_directory(pCardData, NULL, parent, &dir);
 	if (dwret != SCARD_S_SUCCESS)   {
@@ -1158,8 +1219,10 @@ md_fs_finalize(PCARD_DATA pCardData)
 		return;
 
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return;
+	}
 
 	file = vs->root.files;
 	while (file != NULL) {
@@ -1195,12 +1258,20 @@ md_pkcs15_update_containers(PCARD_DATA pCardData, unsigned char *blob, size_t si
 	CONTAINER_MAP_RECORD *pp;
 	int nn_records, idx;
 
-	if (!pCardData || !blob || size < sizeof(CONTAINER_MAP_RECORD))
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!blob || size < sizeof(CONTAINER_MAP_RECORD)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing blob or size too small\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	nn_records = (int) size/sizeof(CONTAINER_MAP_RECORD);
 	if (nn_records > MD_MAX_KEY_CONTAINERS)
@@ -1244,11 +1315,15 @@ md_pkcs15_delete_object(PCARD_DATA pCardData, struct sc_pkcs15_object *obj)
 	DWORD dwret = SCARD_F_INTERNAL_ERROR;
 	int rv;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	card = vs->p15card->card;
 
@@ -1299,8 +1374,14 @@ done:
 static DWORD
 md_fs_set_content(PCARD_DATA pCardData, struct md_file *file, unsigned char *blob, size_t size)
 {
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (file->blob)
 		pCardData->pfnCspFree(file->blob);
@@ -1326,12 +1407,20 @@ md_set_cardid(PCARD_DATA pCardData, struct md_file *file)
 	VENDOR_SPECIFIC *vs;
 	DWORD dwret;
 
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (vs->p15card->tokeninfo && vs->p15card->tokeninfo->serial_number) {
 		unsigned char sn_bin[SC_MAX_SERIALNR];
@@ -1382,12 +1471,20 @@ md_fs_read_msroots_file(PCARD_DATA pCardData, struct md_file *file)
 	struct sc_pkcs15_object *prkey_objs[MD_MAX_KEY_CONTAINERS];
 	DWORD dwret = SCARD_F_INTERNAL_ERROR;
 
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = (VENDOR_SPECIFIC *) pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	hCertStore = CertOpenStore(CERT_STORE_PROV_MEMORY, X509_ASN_ENCODING, (HCRYPTPROV_LEGACY)NULL, 0, NULL);
 	if (!hCertStore)
@@ -1472,12 +1569,20 @@ md_fs_read_content(PCARD_DATA pCardData, char *parent, struct md_file *file)
 	struct md_directory *dir = NULL;
 	DWORD dwret;
 
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = pCardData->pvVendorSpecific;
-	if (!vs || !vs->p15card)
+	if (!vs || !vs->p15card) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing vs or p15card\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = md_fs_find_directory(pCardData, NULL, parent, &dir);
 	if (dwret != SCARD_S_SUCCESS)   {
@@ -1545,8 +1650,14 @@ md_set_cardcf(PCARD_DATA pCardData, struct md_file *file)
 	CARD_CACHE_FILE_FORMAT empty = {0};
 	DWORD dwret;
 
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = md_fs_set_content(pCardData, file, (unsigned char *)(&empty), MD_CARDCF_LENGTH);
 	if (dwret != SCARD_S_SUCCESS)
@@ -1564,8 +1675,14 @@ md_set_cardapps(PCARD_DATA pCardData, struct md_file *file)
 	DWORD dwret;
 	unsigned char mscp[8] = {'m','s','c','p',0,0,0,0};
 
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = md_fs_set_content(pCardData, file, mscp, sizeof(mscp));
 	if (dwret != SCARD_S_SUCCESS)
@@ -1584,12 +1701,20 @@ md_fs_add_msroots(PCARD_DATA pCardData, struct md_file **head)
 	int rv, ii, cert_num;
 	DWORD dwret;
 	struct sc_pkcs15_object *prkey_objs[MD_MAX_KEY_CONTAINERS];
-	if (!pCardData || !head)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!head) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing head\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = (VENDOR_SPECIFIC *) pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	rv = sc_pkcs15_get_objects(vs->p15card, SC_PKCS15_TYPE_CERT_X509, prkey_objs, MD_MAX_KEY_CONTAINERS);
 	if (rv < 0)   {
@@ -1642,13 +1767,21 @@ md_set_cmapfile(PCARD_DATA pCardData, struct md_file *file)
 	pin_mode_t pin_mode = SCF_NONE;
 	int pin_cont_idx = -1;
 
-	if (!pCardData || !file)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!file) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing file\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 2, "set 'cmapfile'\n");
 	vs = pCardData->pvVendorSpecific;
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = md_get_pin_by_role(pCardData, ROLE_USER, &vs->pin_objs[ROLE_USER]);
 	if (dwret != SCARD_S_SUCCESS)   {
@@ -2067,8 +2200,14 @@ md_fs_init(PCARD_DATA pCardData)
 	struct md_file *cardid, *cardcf, *cardapps, *cmapfile;
 	struct md_directory *mscp;
 
-	if (!pCardData || !pCardData->pvVendorSpecific)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!pCardData->pvVendorSpecific) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = pCardData->pvVendorSpecific;
 
@@ -2126,8 +2265,10 @@ md_create_context(PCARD_DATA pCardData, VENDOR_SPECIFIC *vs)
 	sc_context_param_t ctx_param;
 	int r;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 3, "create sc ccontext\n");
 	vs->ctx = NULL;
@@ -2149,8 +2290,10 @@ md_create_context(PCARD_DATA pCardData, VENDOR_SPECIFIC *vs)
 static DWORD
 md_card_capabilities(PCARD_DATA pCardData, PCARD_CAPABILITIES  pCardCapabilities)
 {
-	if (!pCardCapabilities)
+	if (!pCardCapabilities) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardCapabilities\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (pCardCapabilities->dwVersion != CARD_CAPABILITIES_CURRENT_VERSION && pCardCapabilities->dwVersion != 0)
 		return ERROR_REVISION_MISMATCH;
@@ -2169,15 +2312,23 @@ md_free_space(PCARD_DATA pCardData, PCARD_FREE_SPACE_INFO pCardFreeSpaceInfo)
 	VENDOR_SPECIFIC *vs;
 	int count, idx;
 
-	if (!pCardData || !pCardFreeSpaceInfo)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!pCardFreeSpaceInfo) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardFreeSpaceInfo\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (pCardFreeSpaceInfo->dwVersion > CARD_FREE_SPACE_INFO_CURRENT_VERSION )
 		return ERROR_REVISION_MISMATCH;
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* Count free containers */
 	for (idx=0, count=0; idx<MD_MAX_KEY_CONTAINERS; idx++)
@@ -2204,8 +2355,10 @@ md_check_key_compatibility(PCARD_DATA pCardData, DWORD flags, DWORD key_type,
 	struct sc_algorithm_info *algo_info;
 	unsigned int count, key_algo;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	switch(key_type) {
 		case AT_SIGNATURE:
@@ -2227,8 +2380,10 @@ md_check_key_compatibility(PCARD_DATA pCardData, DWORD flags, DWORD key_type,
 	}
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (flags & CARD_CREATE_CONTAINER_KEY_IMPORT)   {
 		if (key_algo == SC_ALGORITHM_RSA) {
@@ -2236,19 +2391,19 @@ md_check_key_compatibility(PCARD_DATA pCardData, DWORD flags, DWORD key_type,
 			RSAPUBKEY *pub_rsa = (RSAPUBKEY *)(pbKeyData + sizeof(PUBLICKEYSTRUC));
 
 			if (!pub_struc)   {
-				logprintf(pCardData, 3, "No data for the key import operation\n");
+				logprintf(pCardData, 3, "INVALID_PARAMETER: No data for the key import operation\n");
 				return SCARD_E_INVALID_PARAMETER;
 			}
 			else if (pub_struc->bType != PRIVATEKEYBLOB)   {
-				logprintf(pCardData, 3, "Invalid blob data for the key import operation\n");
+				logprintf(pCardData, 3, "INVALID_PARAMETER: Invalid blob data for the key import operation\n");
 				return SCARD_E_INVALID_PARAMETER;
 			}
 			else if ((key_type == AT_KEYEXCHANGE) && (pub_struc->aiKeyAlg != CALG_RSA_KEYX))   {
-				logprintf(pCardData, 3, "Expected KEYEXCHANGE type of blob\n");
+				logprintf(pCardData, 3, "INVALID_PARAMETER: Expected KEYEXCHANGE type of blob\n");
 				return SCARD_E_INVALID_PARAMETER;
 			}
 			else if ((key_type == AT_SIGNATURE) && (pub_struc->aiKeyAlg != CALG_RSA_SIGN))   {
-				logprintf(pCardData, 3, "Expected KEYSIGN type of blob\n");
+				logprintf(pCardData, 3, "INVALID_PARAMETER: Expected KEYSIGN type of blob\n");
 				return SCARD_E_INVALID_PARAMETER;
 			}
 
@@ -2256,7 +2411,7 @@ md_check_key_compatibility(PCARD_DATA pCardData, DWORD flags, DWORD key_type,
 				key_size = pub_rsa->bitlen;
 			}
 			else {
-				logprintf(pCardData, 3, "'Magic' control failed\n");
+				logprintf(pCardData, 3, "INVALID_PARAMETER: 'Magic' control failed\n");
 				return SCARD_E_INVALID_PARAMETER;
 			}
 
@@ -2267,42 +2422,42 @@ md_check_key_compatibility(PCARD_DATA pCardData, DWORD flags, DWORD key_type,
 			switch(key_type) {
 				case AT_ECDSA_P256:
 					if (pub_ecc->dwMagic != BCRYPT_ECDSA_PRIVATE_P256_MAGIC) {
-						logprintf(pCardData, 3, "Expected AT_ECDSA_P256 magic\n");
+						logprintf(pCardData, 3, "INVALID_PARAMETER: Expected AT_ECDSA_P256 magic\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					key_size = 256;
 					break;
 				case AT_ECDSA_P384:
 					if (pub_ecc->dwMagic != BCRYPT_ECDSA_PRIVATE_P384_MAGIC) {
-						logprintf(pCardData, 3, "Expected AT_ECDSA_P384 magic\n");
+						logprintf(pCardData, 3, "INVALID_PARAMETER: Expected AT_ECDSA_P384 magic\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					key_size = 384;
 					break;
 				case AT_ECDSA_P521:
 					if (pub_ecc->dwMagic != BCRYPT_ECDSA_PRIVATE_P521_MAGIC) {
-						logprintf(pCardData, 3, "Expected AT_ECDSA_P521 magic\n");
+						logprintf(pCardData, 3, "INVALID_PARAMETER: Expected AT_ECDSA_P521 magic\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					key_size = 521;
 					break;
 				case AT_ECDHE_P256:
 					if (pub_ecc->dwMagic != BCRYPT_ECDH_PRIVATE_P256_MAGIC) {
-						logprintf(pCardData, 3, "Expected AT_ECDHE_P256 magic\n");
+						logprintf(pCardData, 3, "INVALID_PARAMETER: Expected AT_ECDHE_P256 magic\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					key_size = 256;
 					break;
 				case AT_ECDHE_P384:
 					if (pub_ecc->dwMagic != BCRYPT_ECDH_PRIVATE_P384_MAGIC) {
-						logprintf(pCardData, 3, "Expected AT_ECDHE_P384 magic\n");
+						logprintf(pCardData, 3, "INVALID_PARAMETER: Expected AT_ECDHE_P384 magic\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					key_size = 384;
 					break;
 				case AT_ECDHE_P521:
 					if (pub_ecc->dwMagic != BCRYPT_ECDH_PRIVATE_P521_MAGIC) {
-						logprintf(pCardData, 3, "Expected AT_ECDHE_P521 magic\n");
+						logprintf(pCardData, 3, "INVALID_PARAMETER: Expected AT_ECDHE_P521 magic\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					key_size = 521;
@@ -2344,15 +2499,21 @@ md_pkcs15_generate_key(PCARD_DATA pCardData, DWORD idx, DWORD key_type, DWORD ke
 	DWORD dwret = SCARD_F_INTERNAL_ERROR;
 	CHAR szGuid[MAX_CONTAINER_NAME_LEN +1] = "Default key label";
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (PinId >= MD_MAX_PINS || !vs->pin_objs[PinId])
+	if (PinId >= MD_MAX_PINS || !vs->pin_objs[PinId]) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: wrong PinId\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	card = vs->p15card->card;
 
@@ -2622,13 +2783,17 @@ md_pkcs15_store_certificate(PCARD_DATA pCardData, char *file_name, unsigned char
 	int rv, idx;
 	DWORD dwret = SCARD_F_INTERNAL_ERROR;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 1, "MdStoreCert(): store certificate '%s'\n", file_name);
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	card = vs->p15card->card;
 
@@ -2690,8 +2855,10 @@ md_query_key_sizes(PCARD_DATA pCardData, DWORD dwKeySpec, CARD_KEY_SIZES *pKeySi
 	VENDOR_SPECIFIC *vs = NULL;
 	struct sc_algorithm_info* algo_info;
 	int count = 0, i, keysize = 0, flag;
-	if (!pKeySizes)
+	if (!pKeySizes) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pKeySizes\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (pKeySizes->dwVersion != CARD_KEY_SIZES_CURRENT_VERSION && pKeySizes->dwVersion != 0)
 		return ERROR_REVISION_MISMATCH;
@@ -2699,8 +2866,10 @@ md_query_key_sizes(PCARD_DATA pCardData, DWORD dwKeySpec, CARD_KEY_SIZES *pKeySi
 	logprintf(pCardData, 1, "md_query_key_sizes: store dwKeySpec '%lu'\n",
 		  (unsigned long)dwKeySpec);
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	count = vs->p15card->card->algorithm_count;
 
@@ -2731,7 +2900,7 @@ md_query_key_sizes(PCARD_DATA pCardData, DWORD dwKeySpec, CARD_KEY_SIZES *pKeySi
 			}
 		}
 		if (pKeySizes->dwMinimumBitlen == 0) {
-			logprintf(pCardData, 0, "No RSA key found\n");
+			logprintf(pCardData, 0, "INVALID_PARAMETER: No RSA key found\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 		if (pKeySizes->dwDefaultBitlen == 0) {
@@ -2786,7 +2955,7 @@ md_query_key_sizes(PCARD_DATA pCardData, DWORD dwKeySpec, CARD_KEY_SIZES *pKeySi
 				pKeySizes->dwIncrementalBitlen = 1;
 			} else {
 				logprintf(pCardData, 0,
-					  "No ECC key found (keyspec=%lu)\n",
+					  "INVALID_PARAMETER: No ECC key found (keyspec=%lu)\n",
 					  (unsigned long)dwKeySpec);
 				return SCARD_E_INVALID_PARAMETER;
 			}
@@ -2833,6 +3002,7 @@ md_dialog_perform_pin_operation_thread(PVOID lpParameter)
 		rv = sc_pkcs15_unblock_pin(p15card, pin_obj, pin1, pin1len,pin2, pin2len ? *pin2len : 0);
 		break;
 	default:
+		logprintf(NULL, 0, "INVALID_PARAMETER: wrong operation.\n");
 		rv = (DWORD) ERROR_INVALID_PARAMETER;
 		break;
 	}
@@ -3129,6 +3299,7 @@ static DWORD md_translate_OpenSC_to_Windows_error(int OpenSCerror,
 
 		/* Resulting from a card command or related to the card*/
 		case SC_ERROR_INCORRECT_PARAMETERS:
+			logprintf(NULL, 0, "INVALID_PARAMETER: OPENSC SC_ERROR_INCORRECT_PARAMETERS.\n");
 			return SCARD_E_INVALID_PARAMETER;
 		case SC_ERROR_MEMORY_FAILURE:
 		case SC_ERROR_NOT_ENOUGH_MEMORY:
@@ -3142,6 +3313,7 @@ static DWORD md_translate_OpenSC_to_Windows_error(int OpenSCerror,
 
 		/* Returned by OpenSC library when called with invalid arguments */
 		case SC_ERROR_INVALID_ARGUMENTS:
+			logprintf(NULL, 0, "INVALID_PARAMETER: OPENSC SC_ERROR_INVALID_ARGUMENTS.\n");
 			return ERROR_INVALID_PARAMETER;
 		case SC_ERROR_BUFFER_TOO_SMALL:
 			return NTE_BUFFER_TOO_SMALL;
@@ -3164,8 +3336,10 @@ DWORD WINAPI CardDeleteContext(__inout PCARD_DATA  pCardData)
 	VENDOR_SPECIFIC *vs = NULL;
 	CRITICAL_SECTION hScard_lock;
 
-	if(!pCardData)
+	if(!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 1,
 		  "\nP:%lu T:%lu pCardData:%p hScard=0x%08X hSCardCtx=0x%08X CardDeleteContext\n",
@@ -3175,8 +3349,10 @@ DWORD WINAPI CardDeleteContext(__inout PCARD_DATA  pCardData)
 		  (unsigned int)pCardData->hSCardCtx);
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if(!vs)
+	if(!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	hScard_lock = vs->hScard_lock;
 	EnterCriticalSection(&hScard_lock);
@@ -3211,8 +3387,10 @@ DWORD WINAPI CardQueryCapabilities(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "pCardCapabilities=%p\n", pCardCapabilities);
 
-	if (!pCardData || !pCardCapabilities || !lock(pCardData))
+	if (!pCardData || !pCardCapabilities || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData or pCardCapabilities\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_status(pCardData, "CardQueryCapabilities");
 	if (dwret != SCARD_S_SUCCESS) {
@@ -3243,8 +3421,10 @@ DWORD WINAPI CardDeleteContainer(__in PCARD_DATA pCardData,
 	logprintf(pCardData, 1, "CardDeleteContainer(idx:%u)\n",
 		  (unsigned int)bContainerIndex);
 
-	if (!pCardData || !lock(pCardData))
+	if (!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardDeleteContainer");
 	if (dwret != SCARD_S_SUCCESS) {
@@ -3312,8 +3492,10 @@ DWORD WINAPI CardCreateContainerEx(__in PCARD_DATA  pCardData,
 {
 	DWORD dwret;
 
-	if (!pCardData || !lock(pCardData))
+	if (!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (PinId == ROLE_ADMIN) {
 		dwret = SCARD_W_SECURITY_VIOLATION;
@@ -3377,7 +3559,7 @@ DWORD WINAPI CardCreateContainerEx(__in PCARD_DATA  pCardData,
 		logprintf(pCardData, 1, "key imported\n");
 	}
 	else   {
-		logprintf(pCardData, 1, "Invalid dwFlags value: 0x%lX\n",
+		logprintf(pCardData, 1, "INVALID_PARAMETER: Invalid dwFlags value: 0x%lX\n",
 			  (unsigned long)dwFlags);
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
@@ -3419,10 +3601,14 @@ DWORD WINAPI CardGetContainerInfo(__in PCARD_DATA pCardData, __in BYTE bContaine
 	pubkey_der.value = NULL;
 	pubkey_der.len = 0;
 
-	if(!pCardData)
+	if(!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (!pContainerInfo || !lock(pCardData))
+	}
+	if (!pContainerInfo || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pContainerInfo\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	ret = check_card_reader_status(pCardData, "CardGetContainerInfo");
 	if (ret != SCARD_S_SUCCESS)
@@ -3439,6 +3625,7 @@ DWORD WINAPI CardGetContainerInfo(__in PCARD_DATA pCardData, __in BYTE bContaine
 		  (unsigned long)pContainerInfo->cbKeyExPublicKey);
 
 	if (dwFlags) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing dwFlags\n");
 		ret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -3455,6 +3642,7 @@ DWORD WINAPI CardGetContainerInfo(__in PCARD_DATA pCardData, __in BYTE bContaine
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		ret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -3675,6 +3863,15 @@ DWORD WINAPI CardGetContainerInfo(__in PCARD_DATA pCardData, __in BYTE bContaine
 	}
 	logprintf(pCardData, 7, "returns container(idx:%u) info",
 		  (unsigned int)bContainerIndex);
+	loghex(pCardData, 7, (PBYTE)pContainerInfo, sizeof(CONTAINER_INFO));
+	if (pContainerInfo->cbSigPublicKey > 0) {
+		logprintf(pCardData, 7, "cbSigPublicKey=%d to 0x%lX", pContainerInfo->cbSigPublicKey, pContainerInfo->pbSigPublicKey);
+		loghex(pCardData, 7, pContainerInfo->pbSigPublicKey, pContainerInfo->cbSigPublicKey);
+	}
+	if (pContainerInfo->cbKeyExPublicKey > 0) {
+		logprintf(pCardData, 7, "cbKeyExPublicKey=%d to 0x%lX", pContainerInfo->cbKeyExPublicKey, pContainerInfo->pbKeyExPublicKey);
+		loghex(pCardData, 7, pContainerInfo->pbKeyExPublicKey, pContainerInfo->cbKeyExPublicKey);
+	}
 
 err:
 	free(pubkey_der.value);
@@ -3703,10 +3900,13 @@ DWORD WINAPI CardAuthenticatePin(__in PCARD_DATA pCardData,
 		PinId = ROLE_ADMIN;
 	}
 	else {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad UserId\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
-	if (pbPin == NULL)
+	if (pbPin == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pbPin\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	return CardAuthenticateEx(pCardData, PinId, CARD_PIN_SILENT_CONTEXT, pbPin, cbPin, NULL, NULL, pcAttemptsRemaining);
 }
@@ -3725,10 +3925,14 @@ DWORD WINAPI CardGetChallenge(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardGetChallenge\n");
 
-	if(!pCardData)
+	if(!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (!ppbChallengeData || !pcbChallengeData || !lock(pCardData))
+	}
+	if (!ppbChallengeData || !pcbChallengeData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing ChallengeData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardGetChallenge");
 	if (dwret != SCARD_S_SUCCESS) {
@@ -3737,6 +3941,7 @@ DWORD WINAPI CardGetChallenge(__in PCARD_DATA pCardData,
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -3793,8 +3998,10 @@ DWORD WINAPI CardUnblockPin(__in PCARD_DATA  pCardData,
 {
 	DWORD r = SCARD_S_SUCCESS;
 
-	if(!pCardData || !lock(pCardData))
+	if(!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 1, "\nP:%lu T:%lu pCardData:%p ",
 		  (unsigned long)GetCurrentProcessId(),
@@ -3802,12 +4009,12 @@ DWORD WINAPI CardUnblockPin(__in PCARD_DATA  pCardData,
 	logprintf(pCardData, 1, "CardUnblockPin\n");
 
 	if (pwszUserId == NULL) {
-		logprintf(pCardData, 1, "no user ID\n");
+		logprintf(pCardData, 1, "INVALID_PARAMETER: no user ID\n");
 		r = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
 	if (wcscmp(wszCARD_USER_USER, pwszUserId) != 0 && wcscmp(wszCARD_USER_ADMIN,pwszUserId) != 0) {
-		logprintf(pCardData, 1, "unknown user ID %S\n", pwszUserId);
+		logprintf(pCardData, 1, "INVALID_PARAMETER: unknown user ID %S\n", pwszUserId);
 		r = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -3824,7 +4031,7 @@ DWORD WINAPI CardUnblockPin(__in PCARD_DATA  pCardData,
 		dwFlags &= ~CARD_AUTHENTICATE_PIN_CHALLENGE_RESPONSE;
 	}
 	if (dwFlags) {
-		logprintf(pCardData, 1, "flags of %x not supported\n",
+		logprintf(pCardData, 1, "INVALID_PARAMETER: flags of %x not supported\n",
 				(unsigned int)dwFlags);
 		r = SCARD_E_INVALID_PARAMETER;
 		goto err;
@@ -3865,8 +4072,10 @@ DWORD WINAPI CardChangeAuthenticator(__in PCARD_DATA  pCardData,
 	DWORD r = SCARD_S_SUCCESS;
 	PIN_ID pinid;
 
-	if(!pCardData || !lock(pCardData))
+	if(!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 1, "\nP:%lu T:%lu pCardData:%p ",
 			(unsigned long)GetCurrentProcessId(),
@@ -3874,6 +4083,7 @@ DWORD WINAPI CardChangeAuthenticator(__in PCARD_DATA  pCardData,
 	logprintf(pCardData, 1, "CardChangeAuthenticator\n");
 
 	if (pwszUserId == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pwszUserId\n");
 		r = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -3884,11 +4094,13 @@ DWORD WINAPI CardChangeAuthenticator(__in PCARD_DATA  pCardData,
 		goto err;
 	}
 	else if (dwFlags != CARD_AUTHENTICATE_PIN_PIN){
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		r = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
 
 	if (wcscmp(wszCARD_USER_USER, pwszUserId) != 0 && wcscmp(wszCARD_USER_ADMIN, pwszUserId) != 0) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad UserId\n");
 		r = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -3932,8 +4144,10 @@ DWORD WINAPI CardDeauthenticate(__in PCARD_DATA pCardData,
 	logprintf(pCardData, 1, "CardDeauthenticate(%S) %lu\n",
 		  NULLWSTR(pwszUserId), (unsigned long)dwFlags);
 
-	if(!pCardData || !lock(pCardData))
+	if(!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardDeauthenticate");
 	if (dwret != SCARD_S_SUCCESS)
@@ -3941,6 +4155,7 @@ DWORD WINAPI CardDeauthenticate(__in PCARD_DATA pCardData,
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -4002,8 +4217,10 @@ DWORD WINAPI CardCreateFile(__in PCARD_DATA pCardData,
 		  NULLSTR(pszDirectoryName), NULLSTR(pszFileName),
 		  (unsigned long)cbInitialCreationSize, AccessCondition);
 
-	if (!lock(pCardData))
+	if (!lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: failed to lock pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_status(pCardData, "CardCreateFile");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4041,8 +4258,10 @@ DWORD WINAPI CardReadFile(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardReadFile\n");
 
-	if(!pCardData || !lock(pCardData))
+	if(!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 2,
 		  "pszDirectoryName = %s, pszFileName = %s, dwFlags = %lX, pcbData=%p, ppbData=%p\n",
@@ -4050,6 +4269,7 @@ DWORD WINAPI CardReadFile(__in PCARD_DATA pCardData,
 		  (unsigned long)dwFlags, pcbData, ppbData);
 
 	if (!pszFileName || !strlen(pszFileName) || dwFlags) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pszFileName or dwFlags\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -4104,8 +4324,10 @@ DWORD WINAPI CardWriteFile(__in PCARD_DATA pCardData,
 	struct md_file *file = NULL;
 	DWORD dwret;
 
-	if(!pCardData || !lock(pCardData))
+	if(!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 1, "\nP:%lu T:%lu pCardData:%p ",
 		  (unsigned long)GetCurrentProcessId(),
@@ -4167,8 +4389,10 @@ DWORD WINAPI CardDeleteFile(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardDeleteFile(%s, %s) called\n", NULLSTR(pszDirectoryName), NULLSTR(pszFileName));
 
-	if(!pCardData  || !lock(pCardData))
+	if(!pCardData  || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardDeleteFile");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4206,8 +4430,10 @@ DWORD WINAPI CardEnumFiles(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardEnumFiles() directory '%s'\n", NULLSTR(pszDirectoryName));
 
-	if (!pCardData || !pmszFileNames || !pdwcbFileName || !lock(pCardData))
+	if (!pCardData || !pmszFileNames || !pdwcbFileName || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if (dwFlags)   {
 		logprintf(pCardData, 1,
 			  "CardEnumFiles() dwFlags not 'zero' -- %lX\n",
@@ -4222,6 +4448,7 @@ DWORD WINAPI CardEnumFiles(__in PCARD_DATA pCardData,
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -4271,8 +4498,10 @@ DWORD WINAPI CardGetFileInfo(__in PCARD_DATA pCardData,
 	DWORD dwret;
 	struct md_file *file = NULL;
 
-	if(!pCardData  || !lock(pCardData))
+	if(!pCardData  || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 1, "\nP:%lu T:%lu pCardData:%p ",
 		  (unsigned long)GetCurrentProcessId(),
@@ -4313,8 +4542,10 @@ DWORD WINAPI CardQueryFreeSpace(__in PCARD_DATA pCardData, __in DWORD dwFlags,
 		  pCardFreeSpaceInfo, (unsigned long)dwFlags,
 		  (unsigned long)pCardFreeSpaceInfo->dwVersion);
 
-	if (!pCardData || !lock(pCardData))
+	if (!pCardData || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_status(pCardData, "CardQueryFreeSpace");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4350,8 +4581,10 @@ DWORD WINAPI CardQueryKeySizes(__in PCARD_DATA pCardData,
 		  (unsigned long)dwKeySpec, (unsigned long)dwFlags,
 		  pKeySizes ? (unsigned long)pKeySizes->dwVersion : 0);
 
-	if (!pCardData || dwFlags != 0 || dwKeySpec == 0 || !lock(pCardData))
+	if (!pCardData || dwFlags != 0 || dwKeySpec == 0 || !lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_status(pCardData, "CardQueryKeySizes");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4387,18 +4620,24 @@ DWORD WINAPI CardRSADecrypt(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentProcessId(),
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardRSADecrypt\n");
-	if (!pCardData || !pInfo || pInfo->pbData == NULL)
+	if (!pCardData || !pInfo || pInfo->pbData == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if (pInfo->dwVersion > CARD_RSA_KEY_DECRYPT_INFO_CURRENT_VERSION)
 		return ERROR_REVISION_MISMATCH;
 	if ( pInfo->dwVersion < CARD_RSA_KEY_DECRYPT_INFO_CURRENT_VERSION
 			&& pCardData->dwVersion == CARD_DATA_CURRENT_VERSION)
 		return ERROR_REVISION_MISMATCH;
-	if (pInfo->dwKeySpec != AT_KEYEXCHANGE)
+	if (pInfo->dwKeySpec != AT_KEYEXCHANGE) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwKeySpec\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (!lock(pCardData))
+	if (!lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: failed to lock pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardRSADecrypt");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4406,6 +4645,7 @@ DWORD WINAPI CardRSADecrypt(__in PCARD_DATA pCardData,
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -4557,7 +4797,7 @@ DWORD WINAPI CardRSADecrypt(__in PCARD_DATA pCardData,
 		}
 	}
 	else    {
-		logprintf(pCardData, 2, "CardRSADecrypt: no usable RSA algorithm\n");
+		logprintf(pCardData, 2, "INVALID_PARAMETER: CardRSADecrypt: no usable RSA algorithm\n");
 		pCardData->pfnCspFree(pbuf);
 		pCardData->pfnCspFree(pbuf2);
 		dwret = SCARD_E_INVALID_PARAMETER;
@@ -4605,13 +4845,17 @@ DWORD WINAPI CardSignData(__in PCARD_DATA pCardData, __inout PCARD_SIGNING_INFO 
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardSignData\n");
 
-	if (!pCardData || !pInfo)
+	if (!pCardData || !pInfo) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if ( ( pInfo->dwVersion != CARD_SIGNING_INFO_BASIC_VERSION   ) &&
 			( pInfo->dwVersion != CARD_SIGNING_INFO_CURRENT_VERSION ) )
 		return ERROR_REVISION_MISMATCH;
-	if ( pInfo->pbData == NULL )
+	if ( pInfo->pbData == NULL ) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pInfo->pbData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	switch(pInfo->dwKeySpec)
 	{
 	case AT_SIGNATURE:
@@ -4624,13 +4868,18 @@ DWORD WINAPI CardSignData(__in PCARD_DATA pCardData, __inout PCARD_SIGNING_INFO 
 	case AT_ECDHE_P521:
 		break;
 	default:
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad pInfo->dwKeySpec\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
-	if (pInfo->dwSigningFlags & ~(CARD_PADDING_INFO_PRESENT | CARD_PADDING_NONE | CARD_BUFFER_SIZE_ONLY | CARD_PADDING_PKCS1 | CARD_PADDING_PSS | CARD_PADDING_OAEP))
+	if (pInfo->dwSigningFlags & ~(CARD_PADDING_INFO_PRESENT | CARD_PADDING_NONE | CARD_BUFFER_SIZE_ONLY | CARD_PADDING_PKCS1 | CARD_PADDING_PSS | CARD_PADDING_OAEP)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad pInfo->dwSigningFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (!lock(pCardData))
+	if (!lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardSignData");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4652,6 +4901,7 @@ DWORD WINAPI CardSignData(__in PCARD_DATA pCardData, __inout PCARD_SIGNING_INFO 
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -4746,7 +4996,7 @@ DWORD WINAPI CardSignData(__in PCARD_DATA pCardData, __inout PCARD_SIGNING_INFO 
 				break;
 
 			default:
-				logprintf(pCardData, 0, "unsupported paddingtype\n");
+				logprintf(pCardData, 0, "INVALID_PARAMETER: unsupported paddingtype\n");
 				dwret = SCARD_E_INVALID_PARAMETER;
 				goto err;
 		}
@@ -4869,20 +5119,28 @@ DWORD WINAPI CardConstructDHAgreement(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardConstructDHAgreement\n");
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (!pAgreementInfo)
+	}
+	if (!pAgreementInfo) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pAgreementInfo\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if ( pAgreementInfo->pbPublicKey == NULL )
+	}
+	if ( pAgreementInfo->pbPublicKey == NULL ) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pAgreementInfo->pbPublicKey\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if (pAgreementInfo->dwVersion > CARD_DH_AGREEMENT_INFO_VERSION)
 		return ERROR_REVISION_MISMATCH;
 	if ( pAgreementInfo->dwVersion < CARD_DH_AGREEMENT_INFO_VERSION
 			&& pCardData->dwVersion == CARD_DATA_CURRENT_VERSION)
 		return ERROR_REVISION_MISMATCH;
 
-	if (!lock(pCardData))
+	if (!lock(pCardData)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: failed to lock pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardConstructDHAgreement");
 	if (dwret != SCARD_S_SUCCESS)
@@ -4890,6 +5148,7 @@ DWORD WINAPI CardConstructDHAgreement(__in PCARD_DATA pCardData,
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
 	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		dwret = SCARD_E_INVALID_PARAMETER;
 		goto err;
 	}
@@ -5318,12 +5577,12 @@ DWORD WINAPI CardDeriveTlsPrf(__in PCARD_DATA pCardData,
 	} else if (dwProtocol == TLS1_2_PROTOCOL_VERSION) {
 		/* TLS 1.2 */
 		if (szAlgorithm && wcscmp(szAlgorithm, BCRYPT_SHA256_ALGORITHM) != 0 && wcscmp(szAlgorithm, BCRYPT_SHA384_ALGORITHM) != 0) {
-			logprintf(pCardData, 0, "CardDeriveKey: The algorithm for TLS_PRF is invalid %S\n", szAlgorithm);
+			logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: The algorithm for TLS_PRF is invalid %S\n", szAlgorithm);
 			return SCARD_E_INVALID_PARAMETER;
 		}
 	} else {
 		logprintf(pCardData, 0,
-			  "CardDeriveTlsPrf: TLS protocol unknown 0x%08X\n",
+			  "INVALID_PARAMETER: CardDeriveTlsPrf: TLS protocol unknown 0x%08X\n",
 			  (unsigned int)dwReturn);
 		return SCARD_E_INVALID_PARAMETER;
 	}
@@ -5424,18 +5683,24 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentProcessId(),
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardDeriveKey\n");
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if (!pAgreementInfo)
 		return SCARD_E_INVALID_PARAMETER;
 	if (!pAgreementInfo->dwVersion)
 		return ERROR_REVISION_MISMATCH;
 	if (pAgreementInfo->dwVersion > CARD_DERIVE_KEY_CURRENT_VERSION)
 		return ERROR_REVISION_MISMATCH;
-	if (pAgreementInfo->pwszKDF == NULL)
+	if (pAgreementInfo->pwszKDF == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pAgreementInfo->pwszKDF\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (pAgreementInfo->dwFlags & ~(KDF_USE_SECRET_AS_HMAC_KEY_FLAG | CARD_RETURN_KEY_HANDLE | CARD_BUFFER_SIZE_ONLY))
+	}
+	if (pAgreementInfo->dwFlags & ~(KDF_USE_SECRET_AS_HMAC_KEY_FLAG | CARD_RETURN_KEY_HANDLE | CARD_BUFFER_SIZE_ONLY)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad pAgreementInfo->dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* according to the documentation, CARD_DERIVE_KEY_CURRENT_VERSION should be equal to 2.
 	In practice it is not 2 but 1
@@ -5445,16 +5710,20 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 		return ERROR_REVISION_MISMATCH;*/
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* check if the agreement index is ok */
 	if (pAgreementInfo->bSecretAgreementIndex >= vs->allocatedAgreements) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad pAgreementInfo->bSecretAgreementIndex\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
 
 	agreement = vs->dh_agreements + pAgreementInfo->bSecretAgreementIndex;
 	if (agreement->pbAgreement == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad agreement->pbAgreement\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
 
@@ -5472,7 +5741,7 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 			switch(buffer->BufferType) {
 				case KDF_HASH_ALGORITHM:
 					if (szAlgorithm != NULL) {
-						logprintf(pCardData, 0, "CardDeriveKey: got more than one algorithm\n");
+						logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: got more than one algorithm\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					if (wcscmp((PWSTR) buffer->pvBuffer, BCRYPT_SHA1_ALGORITHM) == 0) {
@@ -5487,14 +5756,14 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 						szAlgorithm = BCRYPT_MD5_ALGORITHM;
 					} else {
 						logprintf(pCardData, 0,
-							  "CardDeriveKey: unsupported algorithm %S\n",
+							  "INVALID_PARAMETER: CardDeriveKey: unsupported algorithm %S\n",
 							  (PWSTR)buffer->pvBuffer);
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					break;
 				case KDF_HMAC_KEY:
 					if (pbHmacKey != NULL) {
-						logprintf(pCardData, 0, "CardDeriveKey: got more than one hhmac key\n");
+						logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: got more than one hhmac key\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					pbHmacKey = (PBYTE) buffer->pvBuffer;
@@ -5506,7 +5775,7 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 					break;
 				case KDF_TLS_PRF_LABEL:
 					if (pbLabel != NULL) {
-						logprintf(pCardData, 0, "CardDeriveKey: got more than one Label\n");
+						logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: got more than one Label\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					pbLabel = (PBYTE)buffer->pvBuffer;
@@ -5514,13 +5783,13 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 					break;
 				case KDF_TLS_PRF_SEED:
 					if (pbSeed != NULL) {
-						logprintf(pCardData, 0, "CardDeriveKey: got more than one Seed\n");
+						logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: got more than one Seed\n");
 						return SCARD_E_INVALID_PARAMETER;
 					}
 					if (buffer->cbBuffer != 64)
 					{
 						logprintf(pCardData, 0,
-							  "CardDeriveKey: invalid seed size %lu\n",
+							  "INVALID_PARAMETER: CardDeriveKey: invalid seed size %lu\n",
 							  buffer->cbBuffer);
 						return SCARD_E_INVALID_PARAMETER;
 					}
@@ -5537,7 +5806,7 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 					break;*/
 				default:
 					logprintf(pCardData, 0,
-						  "CardDeriveKey: unknown buffer type %lu\n",
+						  "INVALID_PARAMETER: CardDeriveKey: unknown buffer type %lu\n",
 						  (parameters->pBuffers + i)->BufferType);
 					return SCARD_E_INVALID_PARAMETER;
 			}
@@ -5553,21 +5822,21 @@ DWORD WINAPI CardDeriveKey(__in PCARD_DATA pCardData,
 	}
 	else if (wcscmp(pAgreementInfo->pwszKDF, BCRYPT_KDF_HMAC) == 0) {
 		if (pbHmacKey == NULL) {
-			logprintf(pCardData, 0, "CardDeriveKey: no hhmac key for hmac KDF\n");
+			logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: no hhmac key for hmac KDF\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 	}
 	else if (wcscmp(pAgreementInfo->pwszKDF, BCRYPT_KDF_TLS_PRF) == 0) {
 		if (!pbSeed) {
-			logprintf(pCardData, 0, "CardDeriveKey: No seed was provided\n");
+			logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: No seed was provided\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 		if (!pbLabel) {
-			logprintf(pCardData, 0, "CardDeriveKey: No label was provided\n");
+			logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: No label was provided\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 	} else {
-		logprintf(pCardData, 0, "CardDeriveKey: unsupported KDF %S\n", pAgreementInfo->pwszKDF);
+		logprintf(pCardData, 0, "INVALID_PARAMETER: CardDeriveKey: unsupported KDF %S\n", pAgreementInfo->pwszKDF);
 		return SCARD_E_INVALID_PARAMETER;
 	}
 
@@ -5612,20 +5881,28 @@ DWORD WINAPI CardDestroyDHAgreement(
 		  (unsigned long)GetCurrentProcessId(),
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardDestroyDHAgreement\n");
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (dwFlags)
+	}
+	if (dwFlags) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (bSecretAgreementIndex >= vs->allocatedAgreements) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad bSecretAgreementIndex\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
 
 	agreement = vs->dh_agreements + bSecretAgreementIndex;
 	if (agreement->pbAgreement == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad agreement->pbAgreement\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
 	SecureZeroMemory(agreement->pbAgreement, agreement->dwSize);
@@ -5670,8 +5947,10 @@ DWORD WINAPI CardAuthenticateEx(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardAuthenticateEx\n");
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardAuthenticateEx");
 	if (dwret != SCARD_S_SUCCESS)
@@ -5683,15 +5962,21 @@ DWORD WINAPI CardAuthenticateEx(__in PCARD_DATA pCardData,
 		  (unsigned long)cbPinData, pcAttemptsRemaining ? "YES" : "NO");
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (PinId >= MD_MAX_PINS)
+	if (PinId >= MD_MAX_PINS) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad PinId\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	pin_obj = vs->pin_objs[PinId];
-	if (!pin_obj)
+	if (!pin_obj) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing PinId\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 #if 0
 	/* TODO do we need to return SCARD_E_UNSUPPORTED_FEATURE if the card
@@ -5704,18 +5989,24 @@ DWORD WINAPI CardAuthenticateEx(__in PCARD_DATA pCardData,
 	}
 #endif
 
-	if (dwFlags & ~(CARD_AUTHENTICATE_GENERATE_SESSION_PIN | CARD_AUTHENTICATE_SESSION_PIN | CARD_PIN_SILENT_CONTEXT))
+	if (dwFlags & ~(CARD_AUTHENTICATE_GENERATE_SESSION_PIN | CARD_AUTHENTICATE_SESSION_PIN | CARD_PIN_SILENT_CONTEXT)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: wrong dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (dwFlags & CARD_AUTHENTICATE_GENERATE_SESSION_PIN &&
-		(ppbSessionPin == NULL || pcbSessionPin == NULL))
+		(ppbSessionPin == NULL || pcbSessionPin == NULL)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: wrong dwFlags/SessionPin\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* using a pin pad */
 	if (NULL == pbPinData) {
 		if (!(vs->reader->capabilities & SC_READER_CAP_PIN_PAD
-					|| vs->p15card->card->caps & SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH))
+					|| vs->p15card->card->caps & SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH)) {
+			logprintf(pCardData, 1, "INVALID_PARAMETER: reader capabilities error\n");
 			return SCARD_E_INVALID_PARAMETER;
+		}
 		if (!(dwFlags & CARD_PIN_SILENT_CONTEXT)
 				&& !(vs->ctx->flags & SC_CTX_FLAG_DISABLE_POPUPS)) {
 			DisplayPinpadUI = TRUE;
@@ -5856,33 +6147,47 @@ DWORD WINAPI CardChangeAuthenticatorEx(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardChangeAuthenticatorEx\n");
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardChangeAuthenticatorEx");
 	if (dwret != SCARD_S_SUCCESS)
 		return dwret;
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
-		return SCARD_E_INVALID_PARAMETER;
-
-	if (!(dwFlags & PIN_CHANGE_FLAG_UNBLOCK) && !(dwFlags & PIN_CHANGE_FLAG_CHANGEPIN)){
-		logprintf(pCardData, 1, "Unknown flag\n");
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
-	if ((dwFlags & PIN_CHANGE_FLAG_UNBLOCK) && (dwFlags & PIN_CHANGE_FLAG_CHANGEPIN))
+
+	if (!(dwFlags & PIN_CHANGE_FLAG_UNBLOCK) && !(dwFlags & PIN_CHANGE_FLAG_CHANGEPIN)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (dwFlags & PIN_CHANGE_FLAG_UNBLOCK && dwAuthenticatingPinId == dwTargetPinId)
+	}
+	if ((dwFlags & PIN_CHANGE_FLAG_UNBLOCK) && (dwFlags & PIN_CHANGE_FLAG_CHANGEPIN)) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (dwAuthenticatingPinId >= MD_MAX_PINS || dwTargetPinId >= MD_MAX_PINS)
+	}
+	if (dwFlags & PIN_CHANGE_FLAG_UNBLOCK && dwAuthenticatingPinId == dwTargetPinId) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (!vs->pin_objs[dwAuthenticatingPinId] || !vs->pin_objs[dwTargetPinId])
+	}
+	if (dwAuthenticatingPinId >= MD_MAX_PINS || dwTargetPinId >= MD_MAX_PINS) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwAuthenticatingPinId\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
+	if (!vs->pin_objs[dwAuthenticatingPinId] || !vs->pin_objs[dwTargetPinId]) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwAuthenticatingPinId\n");
+		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* according to the spec: cRetryCount MUST be zero */
-	if (cRetryCount)
+	if (cRetryCount) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad cRetryCount\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 2,
 		  "CardChangeAuthenticatorEx: AuthenticatingPinId=%u, dwFlags=0x%08X, cbAuthenticatingPinData=%lu, TargetPinId=%u, cbTargetData=%lu, Attempts %s\n",
@@ -5894,12 +6199,12 @@ DWORD WINAPI CardChangeAuthenticatorEx(__in PCARD_DATA pCardData,
 	if (!(vs->reader->capabilities & SC_READER_CAP_PIN_PAD
 				|| vs->p15card->card->caps & SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH)) {
 		if (pbAuthenticatingPinData == NULL  || cbAuthenticatingPinData == 0)    {
-			logprintf(pCardData, 1, "Invalid current PIN data\n");
+			logprintf(pCardData, 1, "INVALID_PARAMETER: Invalid current PIN data\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 
 		if (pbTargetData == NULL  || cbTargetData == 0)   {
-			logprintf(pCardData, 1, "Invalid new PIN data\n");
+			logprintf(pCardData, 1, "INVALID_PARAMETER: Invalid new PIN data\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 	}
@@ -5979,8 +6284,10 @@ DWORD WINAPI CardGetContainerProperty(__in PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardGetContainerProperty\n");
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_status(pCardData, "CardGetContainerProperty");
 	if (dwret != SCARD_S_SUCCESS)
@@ -5990,19 +6297,27 @@ DWORD WINAPI CardGetContainerProperty(__in PCARD_DATA pCardData,
 		  "CardGetContainerProperty bContainerIndex=%u, wszProperty=%S, cbData=%lu, dwFlags=0x%08X\n",
 		  (unsigned int)bContainerIndex, NULLWSTR(wszProperty),
 		  (unsigned long)cbData, (unsigned int)dwFlags);
-	if (!wszProperty)
+	if (!wszProperty) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing wszProperty\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (dwFlags)
+	}
+	if (dwFlags) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (!pbData || !pdwDataLen)
+	}
+	if (!pbData || !pdwDataLen) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pbData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if (bContainerIndex >= MD_MAX_KEY_CONTAINERS)
 		return SCARD_E_NO_KEY_CONTAINER;
 
 	/* the test for the existence of containers is redundant with the one made in CardGetContainerInfo but CCP_PIN_IDENTIFIER does not do it */
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	cont = &vs->p15_containers[bContainerIndex];
 
@@ -6061,7 +6376,7 @@ DWORD WINAPI CardGetContainerProperty(__in PCARD_DATA pCardData,
 			  (unsigned int)*p);
 		return SCARD_S_SUCCESS;
 	}
-
+	logprintf(pCardData, 1, "INVALID_PARAMETER: unhandled property\n");
 	return SCARD_E_INVALID_PARAMETER;
 }
 
@@ -6098,18 +6413,24 @@ DWORD WINAPI CardGetProperty(__in PCARD_DATA pCardData,
 		  NULLWSTR(wszProperty), (unsigned long)cbData,
 		  (unsigned long)dwFlags);
 
-	if (!pCardData || !wszProperty)
+	if (!pCardData || !wszProperty) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData or wszProperty\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (!pbData || !pdwDataLen)
+	}
+	if (!pbData || !pdwDataLen) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pbData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	dwret = check_card_reader_status(pCardData, "CardGetProperty");
 	if (dwret != SCARD_S_SUCCESS)
 		return dwret;
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	if (wcscmp(CP_CARD_FREE_SPACE,wszProperty) == 0)   {
 		PCARD_FREE_SPACE_INFO pCardFreeSpaceInfo = (PCARD_FREE_SPACE_INFO )pbData;
@@ -6218,11 +6539,15 @@ DWORD WINAPI CardGetProperty(__in PCARD_DATA pCardData,
 		if (p->dwVersion != PIN_INFO_CURRENT_VERSION)
 			return ERROR_REVISION_MISMATCH;
 
-		if (dwFlags >= MD_MAX_PINS)
+		if (dwFlags >= MD_MAX_PINS) {
+			logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 			return SCARD_E_INVALID_PARAMETER;
+		}
 
-		if (!vs->pin_objs[dwFlags])
+		if (!vs->pin_objs[dwFlags]) {
+			logprintf(pCardData, 1, "INVALID_PARAMETER: incorrect dwFlags\n");
 			return SCARD_E_INVALID_PARAMETER;
+		}
 
 		p->PinType = vs->reader->capabilities & SC_READER_CAP_PIN_PAD
 			|| vs->p15card->card->caps & SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH
@@ -6283,17 +6608,21 @@ DWORD WINAPI CardGetProperty(__in PCARD_DATA pCardData,
 		if (cbData < sizeof(*p))
 			return ERROR_INSUFFICIENT_BUFFER;
 
-		logprintf(pCardData, 7, "CARD_AUTHENTICATED_STATE invalid\n");
+		logprintf(pCardData, 7, "INVALID_PARAMETER: CARD_AUTHENTICATED_STATE invalid\n");
 		return SCARD_E_INVALID_PARAMETER;
 	}
 	else if (wcscmp(CP_CARD_PIN_STRENGTH_VERIFY,wszProperty) == 0)   {
 		DWORD *p = (DWORD *)pbData;
 
-		if (dwFlags >= MD_MAX_PINS)
+		if (dwFlags >= MD_MAX_PINS) {
+			logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 			return SCARD_E_INVALID_PARAMETER;
+		}
 
-		if (!vs->pin_objs[dwFlags])
+		if (!vs->pin_objs[dwFlags]) {
+			logprintf(pCardData, 1, "INVALID_PARAMETER: incorrect dwFlags\n");
 			return SCARD_E_INVALID_PARAMETER;
+		}
 
 		if (pdwDataLen)
 			*pdwDataLen = sizeof(*p);
@@ -6313,22 +6642,22 @@ DWORD WINAPI CardGetProperty(__in PCARD_DATA pCardData,
 		*p = 0;
 	}
 	else if (wcscmp(CP_ENUM_ALGORITHMS, wszProperty) == 0)   {
-		logprintf(pCardData, 3, "Unsupported property '%S'\n", wszProperty);
+		logprintf(pCardData, 3, "INVALID_PARAMETER: Unsupported property '%S'\n", wszProperty);
 		//TODO
 		return SCARD_E_INVALID_PARAMETER;
 	}
 	else if (wcscmp(CP_PADDING_SCHEMES, wszProperty) == 0)   {
-		logprintf(pCardData, 3, "Unsupported property '%S'\n", wszProperty);
+		logprintf(pCardData, 3, "INVALID_PARAMETER: Unsupported property '%S'\n", wszProperty);
 		//TODO
 		return SCARD_E_INVALID_PARAMETER;
 	}
 	else if (wcscmp(CP_CHAINING_MODES, wszProperty) == 0)   {
-		logprintf(pCardData, 3, "Unsupported property '%S'\n", wszProperty);
+		logprintf(pCardData, 3, "INVALID_PARAMETER: Unsupported property '%S'\n", wszProperty);
 		//TODO
 		return SCARD_E_INVALID_PARAMETER;
 	}
 	else   {
-		logprintf(pCardData, 3, "Unsupported property '%S'\n", wszProperty);
+		logprintf(pCardData, 3, "INVALID_PARAMETER: Unsupported property '%S'\n", wszProperty);
 		return SCARD_E_INVALID_PARAMETER;
 
 	}
@@ -6351,8 +6680,10 @@ DWORD WINAPI CardSetProperty(__in   PCARD_DATA pCardData,
 		  (unsigned long)GetCurrentThreadId(), pCardData);
 	logprintf(pCardData, 1, "CardSetProperty\n");
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	logprintf(pCardData, 2,
 		  "CardSetProperty wszProperty=%S, pbData=%p, cbDataLen=%lu, dwFlags=%lu",
@@ -6360,17 +6691,25 @@ DWORD WINAPI CardSetProperty(__in   PCARD_DATA pCardData,
 		  (unsigned long)dwFlags);
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (!wszProperty)
+	if (!wszProperty) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing wszProperty\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (dwFlags)
+	if (dwFlags) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
-	if (!cbDataLen)
+	if (!cbDataLen) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing cbDataLen\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* the following properties cannot be set according to the minidriver specifications */
 	if (wcscmp(wszProperty,CP_CARD_FREE_SPACE) == 0 ||
@@ -6401,12 +6740,15 @@ DWORD WINAPI CardSetProperty(__in   PCARD_DATA pCardData,
 	 */
 	if (wcscmp(CP_PARENT_WINDOW, wszProperty) == 0) {
 		if (cbDataLen != sizeof(HWND) || !pbData)   {
+			logprintf(pCardData, 1, "INVALID_PARAMETER: bad cbDataLen\n");
 			return SCARD_E_INVALID_PARAMETER;
 		}
 		else   {
 			HWND cp = *((HWND *) pbData);
-			if (cp!=0 && !IsWindow(cp))
+			if (cp!=0 && !IsWindow(cp)) {
+				logprintf(pCardData, 1, "INVALID_PARAMETER: bad HWND\n");
 				return SCARD_E_INVALID_PARAMETER;
+			}
 			vs->hwndParent = cp;
 		}
 		logprintf(pCardData, 3, "Saved parent window (%p)\n", vs->hwndParent);
@@ -6675,10 +7017,14 @@ DWORD WINAPI CardAcquireContext(__inout PCARD_DATA pCardData, __in DWORD dwFlags
 	DWORD dwret, suppliedVersion = 0;
 	CRITICAL_SECTION hScard_lock;
 
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if (dwFlags & ~CARD_SECURE_KEY_INJECTION_NO_CARD_MODE)
+	}
+	if (dwFlags & ~CARD_SECURE_KEY_INJECTION_NO_CARD_MODE) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: bad dwFlags\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	if (!(dwFlags & CARD_SECURE_KEY_INJECTION_NO_CARD_MODE)) {
 		if( pCardData->hSCardCtx == 0)   {
 			logprintf(pCardData, 0, "Invalid handle.\n");
@@ -6695,21 +7041,29 @@ DWORD WINAPI CardAcquireContext(__inout PCARD_DATA pCardData, __in DWORD dwFlags
 		return SCARD_E_UNSUPPORTED_FEATURE;
 	}
 
-	if (pCardData->pbAtr == NULL)
+	if (pCardData->pbAtr == NULL) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing ATR\n");
 		return SCARD_E_INVALID_PARAMETER;
-	if ( pCardData->pwszCardName == NULL )
+	}
+	if ( pCardData->pwszCardName == NULL ) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing CardName\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	/* <2 length or >=0x22 are not ISO compliant */
-	if (pCardData->cbAtr >= 0x22 || pCardData->cbAtr <= 0x2)
+	if (pCardData->cbAtr >= 0x22 || pCardData->cbAtr <= 0x2) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: wrong ATR\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 	/* ATR beginning by 0x00 or 0xFF are not ISO compliant */
 	if (pCardData->pbAtr[0] == 0xFF || pCardData->pbAtr[0] == 0x00)
 		return SCARD_E_UNKNOWN_CARD;
 	/* Memory management functions */
 	if ( ( pCardData->pfnCspAlloc   == NULL ) ||
 		( pCardData->pfnCspReAlloc == NULL ) ||
-		( pCardData->pfnCspFree    == NULL ) )
+		( pCardData->pfnCspFree    == NULL ) ) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/* The lowest supported version is 4 - maximum is 7. */
 	if (pCardData->dwVersion < MD_MINIMUM_VERSION_SUPPORTED)
@@ -6719,8 +7073,10 @@ DWORD WINAPI CardAcquireContext(__inout PCARD_DATA pCardData, __in DWORD dwFlags
 
 	/* VENDOR SPECIFIC */
 	vs = pCardData->pvVendorSpecific = pCardData->pfnCspAlloc(sizeof(VENDOR_SPECIFIC));
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "NO_MEMORY: failed to allocate pvVendorSpecific\n");
 		return SCARD_E_NO_MEMORY;
+	}
 	memset(vs, 0, sizeof(VENDOR_SPECIFIC));
 
 	InitializeCriticalSection(&vs->hScard_lock);
@@ -6847,12 +7203,16 @@ static DWORD associate_card(PCARD_DATA pCardData)
 	struct sc_aid *aid;
 
 	logprintf(pCardData, 1, "associate_card\n");
-	if (!pCardData)
+	if (!pCardData) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pCardData\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	vs = (VENDOR_SPECIFIC*)(pCardData->pvVendorSpecific);
-	if (!vs)
+	if (!vs) {
+		logprintf(pCardData, 1, "INVALID_PARAMETER: missing pvVendorSpecific\n");
 		return SCARD_E_INVALID_PARAMETER;
+	}
 
 	/*
 	 * set the addresses of the reader and card handles
