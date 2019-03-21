@@ -20,7 +20,14 @@ project(opensc_build CXX C)
             endif()
         endforeach()
 
+# configurable parameters
+set(ENABLE_OPENSSL OFF CACHE STRING "Enable OpenSSL")
+set(FILE_VERSION_MAJOR "3" CACHE STRING "File Version Major")
+set(FILE_VERSION_MINOR "0" CACHE STRING "File Version Minor")
+set(FILE_VERSION_FIX "0" CACHE STRING "File Version Fix")
+set(FILE_VERSION_REVISION "0" CACHE STRING "File Version Revision")
 
+# generated parameters
 set(DEBUG_FILE "%TEMP%\\opensc-debug.log")
 set(DEFAULT_PCSC_PROVIDER "winscard.dll")
 set(DEFAULT_PKCS11_PROVIDER "opensc-pkcs11.dll")
@@ -29,10 +36,6 @@ set(DEFAULT_SM_MODULE_PATH "# module_path = \"\";")
 set(DYN_LIB_EXT ".dll")
 set(LIBDIR "")
 set(LIB_PRE "")
-set(MINIDRIVER_VERSION_FIX "0")
-set(MINIDRIVER_VERSION_MAJOR "3")
-set(MINIDRIVER_VERSION_MINOR "2")
-set(MINIDRIVER_VERSION_REVISION "0")
 set(OPENSC_SCM_REVISION "OpenSC-OpenSC 0.19.0")
 set(OPENSC_VERSION_FIX "0")
 set(OPENSC_VERSION_MAJOR "0")
@@ -102,6 +105,16 @@ include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_BINARY_DIR}/src)
 
 add_definitions(-DHAVE_CONFIG_H -DWIN32_LEAN_AND_MEAN)
+
+# openssl support
+if(${ENABLE_OPENSSL})
+  set(OPENSSL_DIR ${PROJECT_SOURCE_DIR}/..)
+  add_definitions(-DENABLE_OPENSSL)
+  include_directories(${OPENSSL_DIR}/include)
+  set(OPENSSL_LIB libcrypto.lib)
+  link_directories(${OPENSSL_DIR}/lib/openssl/$(PlatformTarget)/)
+endif(${ENABLE_OPENSSL})
+
 #_WIN32_WINNT=0x0502
 #_CRT_SECURE_NO_WARNINGS
 #_CRT_NONSTDC_NO_DEPRECATE
@@ -124,5 +137,3 @@ add_subdirectory(src/scconf)
 # no tests add_subdirectory(src/tests)
 add_subdirectory(src/tools)
 add_subdirectory(src/ui)
-
-# add_subdirectory(src/esign_qes_emu)
