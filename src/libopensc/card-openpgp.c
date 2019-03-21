@@ -1550,7 +1550,7 @@ static int
 pgp_get_pubkey_pem(sc_card_t *card, unsigned int tag, u8 *buf, size_t buf_len)
 {
 	struct pgp_priv_data *priv = DRVDATA(card);
-	pgp_blob_t	*blob, *mod_blob, *exp_blob;
+	pgp_blob_t	*blob = 0, *mod_blob = 0, *exp_blob = 0;
 	sc_pkcs15_pubkey_t pubkey;
 	u8		*data;
 	size_t		len;
