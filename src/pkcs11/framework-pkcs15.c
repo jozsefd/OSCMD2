@@ -30,6 +30,7 @@
 
 #ifdef ENABLE_OPENSSL
 #include <openssl/opensslv.h>
+#include <openssl/sha.h>
 #else
 #ifndef SHA_DIGEST_LENGTH
 #define SHA_DIGEST_LENGTH	20
