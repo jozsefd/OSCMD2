@@ -1872,12 +1872,29 @@ static int starcos_card_ctl(sc_card_t *card, unsigned long cmd, void *ptr)
 	}
 }
 
+static int starcos_logout_v3_x(sc_card_t *card)
+{
+	int r = SC_ERROR_NOT_SUPPORTED;
+	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_NORMAL);
+
+	if (card->type == SC_CARD_TYPE_STARCOS_V3_5) {
+		starcos_ex_data * ex_data = (starcos_ex_data*)card->drv_data;
+		ex_data->logged_in = SC_PIN_STATE_LOGGED_OUT;
+	}
+
+	SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE, r);
+}
+
 static int starcos_logout(sc_card_t *card)
 {
 	int r;
 	sc_apdu_t apdu;
 	const u8 mf_buf[2] = {0x3f, 0x00};
 
+	if (card->type == SC_CARD_TYPE_STARCOS_V3_4 || card->type == SC_CARD_TYPE_STARCOS_V3_5) {
+		return starcos_logout_v3_x(card);
+	}
+	
 	sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0xA4, 0x00, 0x0C);
 	apdu.le = 0;
 	apdu.lc = 2;
