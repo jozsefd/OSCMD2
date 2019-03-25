@@ -3160,6 +3160,10 @@ md_dialog_perform_pin_operation(PCARD_DATA pCardData, int operation, struct sc_p
 		return rv;
 	}
 
+#ifdef DISABLE_PINPAD
+	return E_FAIL;
+#else
+
 	/* launch the UI in the same thread context than the parent and the function to perform in another thread context 
 	this is the only way to display a modal dialog attached to a parent (hwndParent != 0) */
 	tc.hwndParent = pv->hwndParent;
@@ -3262,6 +3266,7 @@ md_dialog_perform_pin_operation(PCARD_DATA pCardData, int operation, struct sc_p
 	SecureZeroMemory(parameter, sizeof(parameter));
 
 	return (int) result;
+#endif
 }
 
 static DWORD md_translate_OpenSC_to_Windows_error(int OpenSCerror,
@@ -7337,11 +7342,13 @@ BOOL APIENTRY DllMain( HINSTANCE hinstDLL,
 	{
 	case DLL_PROCESS_ATTACH:
 		g_inst = hinstDLL;
+#ifdef  ENABLE_NOTIFY
 		sc_notify_instance = hinstDLL;
 		sc_notify_init();
 		break;
 	case DLL_PROCESS_DETACH:
 		sc_notify_close();
+#endif
 		break;
 	}
 	return TRUE;
