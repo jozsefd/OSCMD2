@@ -157,7 +157,6 @@ static int starcos_init(sc_card_t *card)
 			card->caps |= SC_CARD_CAP_ISO7816_PIN_INFO;
 		} else {
 			card->name = "STARCOS 3.5";
-			flags |= SC_ALGORITHM_RSA_PAD_PSS;
 			_sc_card_add_rsa_alg(card, 3072, flags, 0x10001);
 		}
 
