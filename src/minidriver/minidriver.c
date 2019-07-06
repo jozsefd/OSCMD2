@@ -24,6 +24,7 @@
  */
 
 #include "config.h"
+
 #ifdef ENABLE_MINIDRIVER
 
 #ifdef _MANAGED
@@ -1647,7 +1648,7 @@ md_fs_read_content(PCARD_DATA pCardData, char *parent, struct md_file *file)
 static DWORD
 md_set_cardcf(PCARD_DATA pCardData, struct md_file *file)
 {
-	CARD_CACHE_FILE_FORMAT empty = {0};
+	CARD_CACHE_FILE_FORMAT cardcf_content = {0};
 	DWORD dwret;
 
 	if (!pCardData) {
@@ -1659,7 +1660,14 @@ md_set_cardcf(PCARD_DATA pCardData, struct md_file *file)
 		return SCARD_E_INVALID_PARAMETER;
 	}
 
-	dwret = md_fs_set_content(pCardData, file, (unsigned char *)(&empty), MD_CARDCF_LENGTH);
+#ifdef NO_EMPTY_CARDCF
+	cardcf_content.bVersion = CARD_CACHE_FILE_CURRENT_VERSION;
+	cardcf_content.bPinsFreshness = PIN_SET_NONE;
+	cardcf_content.wContainersFreshness = rand() % 30000;
+	cardcf_content.wFilesFreshness = rand() % 30000;
+#endif
+
+	dwret = md_fs_set_content(pCardData, file, (unsigned char *)(&cardcf_content), MD_CARDCF_LENGTH);
 	if (dwret != SCARD_S_SUCCESS)
 		return dwret;
 
