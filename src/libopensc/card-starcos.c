@@ -1917,6 +1917,13 @@ static int starcos_pin_cmd(sc_card_t *card, struct sc_pin_cmd_data *data,
 			    int *tries_left)
 {
 	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_NORMAL);
+	if (data->flags & SC_PIN_CMD_NEED_PADDING > 0 &&
+		data->pin1.encoding == SC_PIN_ENCODING_ASCII) {
+		// enforce GLP pin encoding for padding
+		//TODO check EF.keyd for PIN type and encoding
+		data->pin1.encoding = SC_PIN_ENCODING_GLP;
+	}
+
 	int r = iso_ops->pin_cmd(card, data, tries_left);
 	if (card->type == SC_CARD_TYPE_STARCOS_V3_5) {
 		starcos_ex_data * ex_data = (starcos_ex_data*)card->drv_data;
