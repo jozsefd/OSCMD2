@@ -2,7 +2,7 @@
 
 This is a repo for the OpenSC based minidriver only build, called OSCMD2. It features a CMake base build system and amendments for StarCOS card driver and a PKCS15 profile emulator.
 
-*Note: this repo is not synchronized with OpenSC anymore*
+**Note: this repo is not synchronized with OpenSC anymore**
 
 # OpenSC documentation
 
