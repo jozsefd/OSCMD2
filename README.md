@@ -72,16 +72,34 @@ cmake --build . --config Release
 cmake --build . --config Debug
 ```
 
-## eSign/QES PKCS15 Emulator
+## eSign/QES and JCOP4 NQ-Applet PKCS15 Emulators
 
-A PKCS15 Emulator was added for G&D StarCOS 3.x cards with an eSign/QES card profile. It will be automatically probed and selected, but it can be forced too:
+PKCS15 Emulators were added for G&D StarCOS 3.x cards with an eSign/QES card profile and JCOP4 cards with NQ-Applet.
+The recommended opnesc.conf configuration file for such cards is the following:
 
 ```
 app default {
-    ...
+	debug = 0;
+	debug_file = "C:\log\opensc.log";
+
+	reader_driver pcsc {
+		enable_pinpad = false;
+	}
+
+	card_drivers = starcos,nqapplet;
+
 	framework pkcs15 {
 		try_emulation_first = yes;
-		builtin_emulators = esign_qes;
+		builtin_emulators = esign_qes,nqapplet;
+	}
+}
+
+app cardmod {
+	reader_driver cardmod {
+		enable_pinpad = false;
+		lock_login = false;
+		enable_cache = true;
 	}
 }
 ```
+
