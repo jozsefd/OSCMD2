@@ -1,15 +1,5 @@
-set(WINDOWS_KITS_PATH "C:/Program Files (x86)/Windows Kits")
 set(CARDMOD_HEADER "cardmod.h")
-set(CARDMOD_DIR "${WINDOWS_KITS_PATH}/8.0/Cryptographic Provider Development Kit/Include")
-
-file(GLOB_RECURSE CARDMOD_HEADERS "${WINDOWS_KITS_PATH}/*/${CARDMOD_HEADER}")
-foreach(path ${CARDMOD_HEADERS})
-  get_filename_component(dir ${path} PATH)
-  if( ${dir} )
-    # override default
-    set(CARDMOD_DIR ${dir})
-  endif()
-endforeach()
+set(CARDMOD_DIR "C:/Program Files (x86)/Microsoft CNG Development Kit/Include")
 
 include_directories(${CARDMOD_DIR})
 add_definitions(-DENABLE_MINIDRIVER -DDISABLE_PINPAD)

@@ -146,6 +146,7 @@ static const struct _sc_driver_entry internal_card_drivers[] = {
 #endif
 	{ "openpgp",	(void *(*)(void)) sc_get_openpgp_driver },
 	{ "jpki",	(void *(*)(void)) sc_get_jpki_driver },
+	{ "nqapplet",	(void *(*)(void)) sc_get_nqApplet_driver },
 #ifdef ENABLE_OPENPACE
 	{ "npa",	(void *(*)(void)) sc_get_npa_driver },
 #endif

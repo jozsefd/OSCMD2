@@ -55,6 +55,7 @@ int sc_pkcs15emu_jpki_init_ex(sc_pkcs15_card_t *,	struct sc_aid *, sc_pkcs15emu_
 int sc_pkcs15emu_coolkey_init_ex(sc_pkcs15_card_t *p15card,	struct sc_aid *, sc_pkcs15emu_opt_t *opts);
 int sc_pkcs15emu_din_66291_init_ex(sc_pkcs15_card_t *p15card,	struct sc_aid *, sc_pkcs15emu_opt_t *opts);
 int sc_pkcs15emu_esign_qes_init_ex(sc_pkcs15_card_t *p15card,	struct sc_aid *, sc_pkcs15emu_opt_t *opts);
+int sc_pkcs15emu_nqapplet_init_ex(sc_pkcs15_card_t *p15card,	struct sc_aid *aid, sc_pkcs15emu_opt_t *opts);
 
 struct sc_pkcs15_emulator_handler {
 	const char *name;
